@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { 
   View, 
   Text, 
-  StyleSheet, 
   TouchableOpacity, 
   ScrollView, 
   ActivityIndicator, 
@@ -11,6 +10,7 @@ import {
 } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import colors from '../theme/colors';
 
 export default function TransactionDetailScreen({ route, navigation }) {
   const [printing, setPrinting] = useState(false);
@@ -19,10 +19,10 @@ export default function TransactionDetailScreen({ route, navigation }) {
 
   if (!transaction) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>Data transaksi tidak ditemukan.</Text>
-        <TouchableOpacity style={styles.btnBack} onPress={() => navigation.navigate('History')}>
-          <Text style={styles.btnText}>Ke Riwayat Transaksi</Text>
+      <View className="flex-1 justify-center items-center p-5">
+        <Text className="text-base text-ink-muted mb-4">Data transaksi tidak ditemukan.</Text>
+        <TouchableOpacity className="bg-primary p-3 rounded-2xl" onPress={() => navigation.navigate('History')} activeOpacity={0.9}>
+          <Text className="text-white font-bold">Ke Riwayat Transaksi</Text>
         </TouchableOpacity>
       </View>
     );
@@ -180,51 +180,51 @@ export default function TransactionDetailScreen({ route, navigation }) {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.title}>Rincian Transaksi</Text>
-        <Text style={styles.transId}>ID: #{transaction.id ? String(transaction.id).substring(0, 10) : 'N/A'}</Text>
-        <Text style={styles.timeText}>🕒 {transaction.formattedTime || 'Baru Saja'}</Text>
+    <ScrollView className="flex-1 p-4 bg-bg">
+      <View className="bg-surface p-4 rounded-card shadow-md mb-4">
+        <Text className="text-lg font-extrabold text-ink">Rincian Transaksi</Text>
+        <Text className="text-[13px] text-ink-muted mt-0.5">#{transaction.id ? String(transaction.id).substring(0, 10) : 'N/A'}</Text>
+        <Text className="text-xs text-ink-muted mt-0.5">{transaction.formattedTime || 'Baru Saja'}</Text>
 
-        <View style={styles.divider} />
+        <View className="h-px bg-hairline my-2.5" />
 
-        <Text style={styles.sectionHeader}>Produk Dibeli:</Text>
+        <Text className="font-bold text-ink mb-2">Produk Dibeli:</Text>
         {rawItems.map((item, index) => (
-          <View key={item?.firestoreDocId || item?.id || index} style={styles.itemRow}>
-            <Text style={styles.itemName}>
+          <View key={item?.firestoreDocId || item?.id || index} className="flex-row justify-between mb-1.5">
+            <Text className="text-sm text-ink flex-1">
               {item?.name || item?.nama || 'Produk'} x{item?.qty || item?.quantity || 1}
             </Text>
-            <Text style={styles.itemSubtotal}>
+            <Text className="text-sm font-bold text-ink">
               Rp {Number(item?.subtotal || (item?.price * (item?.qty || 1)) || 0).toLocaleString('id-ID')}
             </Text>
           </View>
         ))}
 
-        <View style={styles.divider} />
+        <View className="h-px bg-hairline my-2.5" />
 
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Metode Pembayaran:</Text>
-          <Text style={styles.infoValue}>{transaction.paymentMethod}</Text>
+        <View className="flex-row justify-between my-1">
+          <Text className="text-ink-muted text-sm">Metode Pembayaran:</Text>
+          <Text className="font-bold text-ink text-sm">{transaction.paymentMethod}</Text>
         </View>
 
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Total Tagihan:</Text>
-          <Text style={styles.totalValue}>
+        <View className="flex-row justify-between my-1">
+          <Text className="text-ink-muted text-sm">Total Tagihan:</Text>
+          <Text className="font-extrabold text-success text-base">
             Rp {Number(transaction.totalAmount || 0).toLocaleString('id-ID')}
           </Text>
         </View>
 
         {transaction.paymentMethod === 'CASH' && (
           <>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Uang Diterima:</Text>
-              <Text style={styles.infoValue}>
+            <View className="flex-row justify-between my-1">
+              <Text className="text-ink-muted text-sm">Uang Diterima:</Text>
+              <Text className="font-bold text-ink text-sm">
                 Rp {Number(transaction.cashReceived || transaction.totalAmount || 0).toLocaleString('id-ID')}
               </Text>
             </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Kembalian:</Text>
-              <Text style={styles.changeValue}>
+            <View className="flex-row justify-between my-1">
+              <Text className="text-ink-muted text-sm">Kembalian:</Text>
+              <Text className="font-bold text-danger text-sm">
                 Rp {Number(transaction.change || 0).toLocaleString('id-ID')}
               </Text>
             </View>
@@ -233,56 +233,27 @@ export default function TransactionDetailScreen({ route, navigation }) {
       </View>
 
       {/* Action Buttons */}
-      <View style={styles.actionContainer}>
+      <View className="flex-row justify-between mb-2.5 gap-2.5">
         {/* Tombol Cetak Resi */}
         <TouchableOpacity 
-          style={[styles.btnPrint, printing && styles.btnDisabled]} 
+          className={`flex-1 bg-primary p-3.5 rounded-2xl items-center ${printing ? 'opacity-60' : ''}`}
           onPress={handlePrint}
           disabled={printing || downloading}
+          activeOpacity={0.9}
         >
           {printing ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.surface} />
           ) : (
-            <Text style={styles.btnPrintText}>🖨️ Cetak Struk</Text>
+            <Text className="text-white font-bold text-[15px]">Cetak Struk</Text>
           )}
         </TouchableOpacity>
 
       </View>
 
       {/* Tombol Kembali ke Riwayat */}
-      <TouchableOpacity style={styles.btnHistory} onPress={() => navigation.navigate('History')}>
-        <Text style={styles.btnHistoryText}>📜 Lihat Semua Riwayat</Text>
+      <TouchableOpacity className="bg-surface border border-hairline p-3.5 rounded-2xl items-center mb-8" onPress={() => navigation.navigate('History')} activeOpacity={0.85}>
+        <Text className="text-ink font-bold text-base">Lihat Semua Riwayat</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#f4f6f8' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  errorText: { fontSize: 16, color: '#666', marginBottom: 16 },
-  card: { backgroundColor: '#fff', padding: 16, borderRadius: 10, elevation: 2, marginBottom: 16 },
-  title: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  transId: { fontSize: 13, color: '#666', marginTop: 2 },
-  timeText: { fontSize: 12, color: '#888', marginTop: 2 },
-  divider: { height: 1, backgroundColor: '#eee', marginVertical: 10 },
-  sectionHeader: { fontWeight: 'bold', color: '#555', marginBottom: 8 },
-  itemRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  itemName: { fontSize: 14, color: '#333', flex: 1 },
-  itemSubtotal: { fontSize: 14, fontWeight: 'bold', color: '#333' },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 4 },
-  infoLabel: { color: '#666', fontSize: 14 },
-  infoValue: { fontWeight: 'bold', color: '#333', fontSize: 14 },
-  totalValue: { fontWeight: 'bold', color: '#2e7d32', fontSize: 16 },
-  changeValue: { fontWeight: 'bold', color: '#d32f2f', fontSize: 14 },
-  actionContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, gap: 10 },
-  btnPrint: { flex: 1, backgroundColor: '#2e7d32', padding: 14, borderRadius: 8, alignItems: 'center' },
-  btnDownload: { flex: 1, backgroundColor: '#0288d1', padding: 14, borderRadius: 8, alignItems: 'center' },
-  btnDisabled: { opacity: 0.6 },
-  btnPrintText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-  btnDownloadText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-  btnHistory: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#007AFF', padding: 14, borderRadius: 8, alignItems: 'center', marginBottom: 30 },
-  btnHistoryText: { color: '#007AFF', fontWeight: 'bold', fontSize: 16 },
-  btnBack: { backgroundColor: '#007AFF', padding: 12, borderRadius: 8 },
-  btnText: { color: '#fff', fontWeight: 'bold' }
-});

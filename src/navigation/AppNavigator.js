@@ -9,6 +9,8 @@ import PaymentScreen from '../screens/PaymentScreen';
 import QRISSettingScreen from '../screens/QRISSettingScreen';
 import TransactionDetailScreen from '../screens/TransactionDetailScreen';
 
+import colors from '../theme/colors';
+
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
@@ -17,9 +19,10 @@ export default function AppNavigator() {
       initialRouteName="Home"
       screenOptions={{
         headerTitleAlign: 'center',
-        headerStyle: { backgroundColor: '#2e7d32' },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: 'bold' },
+        headerStyle: { backgroundColor: colors.primary },
+        headerTintColor: colors.surface,
+        headerTitleStyle: { fontWeight: '700' },
+        headerShadowVisible: false,
       }}
     >
       <Stack.Screen 

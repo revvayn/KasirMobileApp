@@ -1,23 +1,27 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, TextInput, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, Platform } from 'react-native';
+import colors from '../theme/colors';
 
 export default function FilterBar({ filter, setFilter, customDate, setCustomDate }) {
   return (
-    <View style={styles.container}>
-      <View style={styles.filterRow}>
+    <View className="mb-4">
+      <View className="flex-row flex-wrap gap-2">
         {[
           { key: 'today', label: 'Hari Ini' },
           { key: 'month', label: 'Bulan Ini' },
           { key: 'year', label: 'Tahun Ini' },
           { key: 'all', label: 'Semua' },
-          { key: 'custom', label: '📅 Pilih Tanggal' },
+          { key: 'custom', label: 'Pilih Tanggal' },
         ].map((item) => (
           <TouchableOpacity
             key={item.key}
-            style={[styles.filterChip, filter === item.key && styles.filterChipActive]}
+            className={`px-3 py-1.5 rounded-full border ${
+              filter === item.key ? 'bg-primary border-primary' : 'bg-surface border-hairline'
+            }`}
             onPress={() => setFilter(item.key)}
+            activeOpacity={0.8}
           >
-            <Text style={[styles.filterText, filter === item.key && styles.filterTextActive]}>
+            <Text className={`text-xs font-bold ${filter === item.key ? 'text-white' : 'text-ink-muted'}`}>
               {item.label}
             </Text>
           </TouchableOpacity>
@@ -26,25 +30,28 @@ export default function FilterBar({ filter, setFilter, customDate, setCustomDate
 
       {/* Input Tanggal Kalender jika filter 'custom' dipilih */}
       {filter === 'custom' && (
-        <View style={styles.calendarContainer}>
-          <Text style={styles.dateLabel}>Pilih Tanggal Transaksi:</Text>
+        <View className="mt-3 p-3 bg-surface rounded-2xl border border-hairline">
+          <Text className="text-xs font-bold text-ink">Pilih Tanggal Transaksi:</Text>
           {Platform.OS === 'web' ? (
             <input
               type="date"
               value={customDate}
               onChange={(e) => setCustomDate(e.target.value)}
               style={{
-                padding: '8px',
-                borderRadius: '6px',
-                border: '1px solid #ccc',
+                padding: '10px',
+                borderRadius: '10px',
+                border: `1px solid ${colors.hairline}`,
                 fontSize: '14px',
-                marginTop: '4px'
+                marginTop: '6px',
+                color: colors.ink,
+                backgroundColor: colors.bg,
               }}
             />
           ) : (
             <TextInput
-              style={styles.dateInput}
+              className="border border-hairline p-2.5 rounded-lg mt-1.5 text-ink"
               placeholder="YYYY-MM-DD (contoh: 2026-09-08)"
+              placeholderTextColor={colors['ink-muted']}
               value={customDate}
               onChangeText={setCustomDate}
             />
@@ -54,15 +61,3 @@ export default function FilterBar({ filter, setFilter, customDate, setCustomDate
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { marginBottom: 16 },
-  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#e0e0e0' },
-  filterChipActive: { backgroundColor: '#007AFF' },
-  filterText: { fontSize: 12, color: '#555', fontWeight: '600' },
-  filterTextActive: { color: '#fff' },
-  calendarContainer: { marginTop: 10, padding: 10, backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#ddd' },
-  dateLabel: { fontSize: 12, fontWeight: 'bold', color: '#444' },
-  dateInput: { borderWidth: 1, borderColor: '#ccc', padding: 8, borderRadius: 6, marginTop: 4 }
-});

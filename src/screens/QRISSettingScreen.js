@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Image, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TextInput, Image, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { getQRISUrl, saveQRISUrl } from '../services/paymentService';
+import colors from '../theme/colors';
 
 export default function QRISSettingScreen({ navigation }) {
   const [qrisUrl, setQrisUrl] = useState('');
@@ -44,61 +45,48 @@ export default function QRISSettingScreen({ navigation }) {
 
   if (fetching) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#2e7d32" />
+      <View className="flex-1 bg-bg justify-center items-center">
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Pengaturan QRIS Toko</Text>
-      <Text style={styles.subtitle}>Masukkan link URL gambar QRIS toko Anda (contoh: dari Imgur atau hosting publik)</Text>
+    <ScrollView className="flex-1 bg-bg" contentContainerStyle={{ padding: 24, paddingBottom: 32 }}>
+      <Text className="text-xl font-extrabold text-ink -tracking-tight mb-1">Pengaturan QRIS Toko</Text>
+      <Text className="text-[13px] font-medium text-ink-muted mb-4">Masukkan link URL gambar QRIS toko Anda (contoh: dari Imgur atau hosting publik)</Text>
 
       <TextInput
-        style={styles.input}
+        className="border border-hairline rounded-2xl p-4 bg-surface text-ink mb-4"
         placeholder="https://i.imgur.com/contoh.jpg"
+        placeholderTextColor={colors['ink-muted']}
         value={qrisUrl}
         onChangeText={setQrisUrl}
         autoCapitalize="none"
       />
 
       {qrisUrl ? (
-        <View style={styles.previewContainer}>
-          <Text style={styles.previewLabel}>Pratinjau QRIS Saat Ini:</Text>
+        <View className="items-center mb-6">
+          <Text className="text-xs font-bold text-ink mb-2">Pratinjau QRIS Saat Ini</Text>
           <Image
             source={{ uri: qrisUrl }}
-            style={styles.qrisImage}
+            className="w-[220px] h-[220px] rounded-card border border-hairline bg-surface"
             onError={() => Alert.alert('Format Salah', 'Link gambar tidak valid atau tidak bisa dimuat.')}
           />
         </View>
       ) : (
-        <View style={styles.qrisErrorBox}>
-          <Text style={styles.qrisErrorText}>Belum ada QRIS yang tersimpan.</Text>
+        <View className="w-full h-[150px] bg-surface-alt justify-center items-center rounded-2xl mb-6">
+          <Text className="text-[13px] font-medium text-ink-muted">Belum ada QRIS yang tersimpan.</Text>
         </View>
       )}
 
       {loading ? (
-        <ActivityIndicator size="large" color="#2e7d32" style={{ marginTop: 20 }} />
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 24 }} />
       ) : (
-        <TouchableOpacity style={styles.btnSave} onPress={handleSave}>
-          <Text style={styles.btnText}>Simpan Link QRIS</Text>
+        <TouchableOpacity className="bg-primary p-3.5 rounded-2xl items-center mb-8 shadow-md" onPress={handleSave} activeOpacity={0.9}>
+          <Text className="text-white font-bold text-base">Simpan Link QRIS</Text>
         </TouchableOpacity>
       )}
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#f4f6f8' },
-  title: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 6 },
-  subtitle: { fontSize: 13, color: '#666', marginBottom: 16 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, backgroundColor: '#fff', marginBottom: 16 },
-  previewContainer: { alignItems: 'center', marginBottom: 20 },
-  previewLabel: { fontSize: 14, color: '#555', marginBottom: 8, fontWeight: '600' },
-  qrisImage: { width: 220, height: 220, borderRadius: 10, borderWidth: 1, borderColor: '#ddd', backgroundColor: '#fff' },
-  qrisErrorBox: { width: '100%', height: 150, backgroundColor: '#eaeaea', justifyContent: 'center', alignItems: 'center', borderRadius: 8, marginBottom: 20 },
-  qrisErrorText: { color: '#777', fontSize: 13 },
-  btnSave: { backgroundColor: '#2e7d32', padding: 14, borderRadius: 8, alignItems: 'center', marginBottom: 30 },
-  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-});

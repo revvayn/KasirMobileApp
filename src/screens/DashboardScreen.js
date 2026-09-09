@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native';
 import { getDashboardStats } from '../services/transactionService';
 import FilterBar from '../components/FilterBar';
+import colors from '../theme/colors';
 
 export default function DashboardScreen({ navigation }) {
   const [stats, setStats] = useState({
@@ -38,10 +39,11 @@ export default function DashboardScreen({ navigation }) {
 
   return (
     <ScrollView
-      style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      className="flex-1 bg-bg"
+      contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
     >
-      <Text style={styles.headerTitle}>Ringkasan Penjualan</Text>
+      <Text className="text-2xl font-extrabold text-ink -tracking-tight mb-3">Ringkasan Penjualan</Text>
 
       {/* Filter Component */}
       <FilterBar
@@ -52,63 +54,65 @@ export default function DashboardScreen({ navigation }) {
       />
 
       {loading ? (
-        <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 30 }} />
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 30 }} />
       ) : (
         <>
-          <View style={styles.statsGrid}>
-            <View style={[styles.statCard, { backgroundColor: '#1e88e5' }]}>
-              <Text style={styles.cardLabel}>Total Pendapatan</Text>
-              <Text style={styles.cardValueLarge}>
+          <View className="mb-4 gap-3">
+            <View className="p-4 rounded-card bg-primary shadow-md">
+              <Text className="text-white text-[13px] font-semibold opacity-75">Total Pendapatan</Text>
+              <Text className="text-white text-[26px] font-extrabold mt-2">
                 Rp {stats.totalRevenue.toLocaleString('id-ID')}
               </Text>
             </View>
 
-            <View style={styles.rowGrid}>
-              <View style={[styles.statCardHalf, { backgroundColor: '#43a047' }]}>
-                <Text style={styles.cardLabel}>Total Transaksi</Text>
-                <Text style={styles.cardValue}>{stats.totalTransactions}</Text>
+            <View className="flex-row gap-3">
+              <View className="flex-1 p-3.5 rounded-card bg-surface border border-hairline">
+                <Text className="text-xs font-semibold text-ink-muted">Total Transaksi</Text>
+                <Text className="text-ink text-xl font-extrabold mt-2">{stats.totalTransactions}</Text>
               </View>
 
-              <View style={[styles.statCardHalf, { backgroundColor: '#fb8c00' }]}>
-                <Text style={styles.cardLabel}>Item Terjual</Text>
-                <Text style={styles.cardValue}>{stats.totalItemsSold} pcs</Text>
+              <View className="flex-1 p-3.5 rounded-card bg-surface border border-hairline">
+                <Text className="text-xs font-semibold text-ink-muted">Item Terjual</Text>
+                <Text className="text-ink text-xl font-extrabold mt-2">{stats.totalItemsSold} pcs</Text>
               </View>
             </View>
           </View>
 
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>🔥 Produk Terlaris (Top 5)</Text>
+          <View className="bg-surface p-4 rounded-card mb-4 shadow-md">
+            <Text className="text-[17px] font-bold text-ink mb-3">Produk Terlaris</Text>
             {stats.topProducts.length === 0 ? (
-              <Text style={styles.emptyText}>Tidak ada penjualan di periode ini.</Text>
+              <Text className="text-xs font-medium text-ink-muted italic my-2">Tidak ada penjualan di periode ini.</Text>
             ) : (
               stats.topProducts.map((item, index) => (
-                <View key={index} style={styles.topProductRow}>
-                  <Text style={styles.rankText}>#{index + 1}</Text>
-                  <Text style={styles.productName}>{item.name}</Text>
-                  <Text style={styles.productQty}>{item.qty} terjual</Text>
+                <View key={index} className="flex-row items-center py-2.5 border-b border-hairline">
+                  <View className="w-6 h-6 rounded-full bg-accent-soft items-center justify-center mr-2">
+                    <Text className="font-extrabold text-accent text-xs">{index + 1}</Text>
+                  </View>
+                  <Text className="flex-1 text-sm font-medium text-ink">{item.name}</Text>
+                  <Text className="font-bold text-ink-muted text-xs">{item.qty} terjual</Text>
                 </View>
               ))
             )}
           </View>
 
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>📋 Transaksi Terbaru</Text>
+          <View className="bg-surface p-4 rounded-card mb-4 shadow-md">
+            <View className="flex-row justify-between items-center mb-3">
+              <Text className="text-[17px] font-bold text-ink">Transaksi Terbaru</Text>
               <TouchableOpacity onPress={() => navigation.navigate('History')}>
-                <Text style={styles.linkText}>Lihat Semua</Text>
+                <Text className="text-accent font-bold text-[13px]">Lihat Semua</Text>
               </TouchableOpacity>
             </View>
 
             {stats.recentTransactions.length === 0 ? (
-              <Text style={styles.emptyText}>Tidak ada transaksi di periode ini.</Text>
+              <Text className="text-xs font-medium text-ink-muted italic my-2">Tidak ada transaksi di periode ini.</Text>
             ) : (
               stats.recentTransactions.map((item) => (
-                <View key={item.id} style={styles.recentRow}>
+                <View key={item.id} className="flex-row justify-between items-center py-2.5 border-b border-hairline">
                   <View>
-                    <Text style={styles.transId}>ID: #{item.id.substring(0, 8)}</Text>
-                    <Text style={styles.timeText}>{item.formattedTime}</Text>
+                    <Text className="font-bold text-[13px] text-ink">#{item.id.substring(0, 8)}</Text>
+                    <Text className="text-xs font-medium text-ink-muted mt-0.5">{item.formattedTime}</Text>
                   </View>
-                  <Text style={styles.transAmount}>
+                  <Text className="font-extrabold text-success text-sm">
                     Rp {item.totalAmount?.toLocaleString('id-ID')}
                   </Text>
                 </View>
@@ -120,28 +124,3 @@ export default function DashboardScreen({ navigation }) {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#f4f6f8' },
-  headerTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 12, color: '#333' },
-  statsGrid: { marginBottom: 16, gap: 12 },
-  statCard: { padding: 16, borderRadius: 12, elevation: 3 },
-  rowGrid: { flexDirection: 'row', gap: 12 },
-  statCardHalf: { flex: 1, padding: 14, borderRadius: 12, elevation: 3 },
-  cardLabel: { color: '#fff', fontSize: 13, fontWeight: '600', opacity: 0.9 },
-  cardValueLarge: { color: '#fff', fontSize: 24, fontWeight: 'bold', marginTop: 8 },
-  cardValue: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginTop: 6 },
-  sectionCard: { backgroundColor: '#fff', padding: 16, borderRadius: 12, marginBottom: 16, elevation: 2 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#222', marginBottom: 12 },
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  linkText: { color: '#007AFF', fontWeight: '600', fontSize: 13 },
-  emptyText: { color: '#888', fontStyle: 'italic', marginVertical: 8 },
-  topProductRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  rankText: { width: 30, fontWeight: 'bold', color: '#fb8c00' },
-  productName: { flex: 1, fontWeight: '500', color: '#333' },
-  productQty: { fontWeight: 'bold', color: '#555' },
-  recentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  transId: { fontWeight: 'bold', fontSize: 13, color: '#444' },
-  timeText: { fontSize: 11, color: '#888', marginTop: 2 },
-  transAmount: { fontWeight: 'bold', color: '#2e7d32', fontSize: 14 }
-});

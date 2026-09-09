@@ -4,7 +4,6 @@ import {
   Text, 
   TextInput, 
   FlatList, 
-  StyleSheet, 
   Image, 
   TouchableOpacity, 
   Alert, 
@@ -17,6 +16,7 @@ import {
   deleteProduct, 
   uploadProductImage 
 } from '../services/productService';
+import colors from '../theme/colors';
 
 export default function ProductManagerScreen() {
   const [products, setProducts] = useState([]);
@@ -90,17 +90,20 @@ export default function ProductManagerScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{editingId ? 'Edit Produk' : 'Tambah Produk Baru'}</Text>
+    <View className="flex-1 p-4 bg-bg">
+      <Text className="text-[19px] font-extrabold text-ink -tracking-tight mb-3">
+        {editingId ? 'Edit Produk' : 'Tambah Produk Baru'}
+      </Text>
 
       {/* Form Input */}
-      <TextInput style={styles.input} placeholder="Nama Produk" value={name} onChangeText={setName} />
-      <TextInput style={styles.input} placeholder="Kategori (misal: Komponen)" value={category} onChangeText={setCategory} />
-      <TextInput style={styles.input} placeholder="Harga (Rp)" keyboardType="numeric" value={price} onChangeText={setPrice} />
-      <TextInput style={styles.input} placeholder="Stok" keyboardType="numeric" value={stock} onChangeText={setStock} />
+      <TextInput className="border border-hairline rounded-2xl p-2.5 mb-2.5 bg-surface text-ink" placeholder="Nama Produk" placeholderTextColor={colors['ink-muted']} value={name} onChangeText={setName} />
+      <TextInput className="border border-hairline rounded-2xl p-2.5 mb-2.5 bg-surface text-ink" placeholder="Kategori (misal: Komponen)" placeholderTextColor={colors['ink-muted']} value={category} onChangeText={setCategory} />
+      <TextInput className="border border-hairline rounded-2xl p-2.5 mb-2.5 bg-surface text-ink" placeholder="Harga (Rp)" placeholderTextColor={colors['ink-muted']} keyboardType="numeric" value={price} onChangeText={setPrice} />
+      <TextInput className="border border-hairline rounded-2xl p-2.5 mb-2.5 bg-surface text-ink" placeholder="Stok" placeholderTextColor={colors['ink-muted']} keyboardType="numeric" value={stock} onChangeText={setStock} />
       <TextInput 
-        style={[styles.input, { height: 60 }]} 
+        className="border border-hairline rounded-2xl p-2.5 mb-2.5 bg-surface text-ink h-[60px]" 
         placeholder="Deskripsi Produk" 
+        placeholderTextColor={colors['ink-muted']}
         multiline 
         value={description} 
         onChangeText={setDescription} 
@@ -108,30 +111,31 @@ export default function ProductManagerScreen() {
 
       {/* Input Link Foto Gambar */}
       <TextInput 
-        style={styles.input} 
+        className="border border-hairline rounded-2xl p-2.5 mb-2.5 bg-surface text-ink" 
         placeholder="Link Foto Produk (https://...)" 
+        placeholderTextColor={colors['ink-muted']}
         value={imageUrl} 
         onChangeText={setImageUrl} 
       />
 
       {/* Preview Gambar dari Link */}
       {imageUrl ? (
-        <View style={{ alignItems: 'center', marginBottom: 12 }}>
-          <Image source={{ uri: imageUrl }} style={styles.previewImage} />
+        <View className="items-center mb-3">
+          <Image source={{ uri: imageUrl }} className="w-20 h-20 rounded-2xl bg-surface-alt" />
         </View>
       ) : null}
 
       {/* Tombol Simpan / Batal */}
       {uploading ? (
-        <ActivityIndicator size="large" color="#2e7d32" style={{ marginVertical: 10 }} />
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 10 }} />
       ) : (
-        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-          <TouchableOpacity style={[styles.btn, styles.btnSave]} onPress={handleSave}>
-            <Text style={styles.btnText}>{editingId ? 'Update Produk' : 'Simpan Produk'}</Text>
+        <View className="flex-row gap-2.5 mb-4">
+          <TouchableOpacity className="flex-1 p-4 rounded-2xl items-center bg-primary" onPress={handleSave} activeOpacity={0.9}>
+            <Text className="text-white font-bold">{editingId ? 'Update Produk' : 'Simpan Produk'}</Text>
           </TouchableOpacity>
           {editingId && (
-            <TouchableOpacity style={[styles.btn, styles.btnCancel]} onPress={resetForm}>
-              <Text style={styles.btnText}>Batal</Text>
+            <TouchableOpacity className="flex-1 p-4 rounded-2xl items-center bg-surface border border-hairline" onPress={resetForm} activeOpacity={0.9}>
+              <Text className="text-ink font-bold">Batal</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -141,26 +145,27 @@ export default function ProductManagerScreen() {
       <FlatList
         data={products}
         keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <View className="flex-row bg-surface p-3 rounded-card mb-2.5 items-center shadow-md">
             <Image
               source={{ uri: item.imageUrl || 'https://via.placeholder.com/150' }}
-              style={styles.productImage}
+              className="w-[60px] h-[60px] rounded-2xl mr-3 bg-surface-alt"
             />
-            <View style={styles.info}>
-              <Text style={styles.prodName}>{item.name}</Text>
-              {item.category ? <Text style={styles.prodCategory}>{item.category}</Text> : null}
-              <Text style={styles.prodPrice}>
+            <View className="flex-1">
+              <Text className="font-bold text-[15px] text-ink" numberOfLines={1}>{item.name}</Text>
+              {item.category ? <Text className="text-[11px] text-accent font-bold mt-0.5 mb-0.5">{item.category}</Text> : null}
+              <Text className="text-ink font-extrabold text-[13px] mt-0.5">
                 Rp {item.price ? item.price.toLocaleString('id-ID') : '0'}
               </Text>
-              <Text style={styles.prodStock}>Stok: {item.stock ?? 0}</Text>
+              <Text className="text-ink-muted text-xs mt-0.5">Stok: {item.stock ?? 0}</Text>
             </View>
-            <View style={styles.actionRow}>
+            <View className="gap-2.5 items-end">
               <TouchableOpacity onPress={() => handleEdit(item)}>
-                <Text style={styles.editText}>✏️ Edit</Text>
+                <Text className="text-accent font-bold text-xs">Edit</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleDelete(item.id)}>
-                <Text style={styles.deleteText}>🗑️ Hapus</Text>
+                <Text className="text-danger font-bold text-xs">Hapus</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -169,24 +174,3 @@ export default function ProductManagerScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#f4f6f8' },
-  title: { fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 10, backgroundColor: '#fff' },
-  previewImage: { width: 80, height: 80, borderRadius: 8, backgroundColor: '#ccc' },
-  btn: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center' },
-  btnSave: { backgroundColor: '#2e7d32' },
-  btnCancel: { backgroundColor: '#757575' },
-  btnText: { color: '#fff', fontWeight: 'bold' },
-  card: { flexDirection: 'row', backgroundColor: '#fff', padding: 12, borderRadius: 10, marginBottom: 10, alignItems: 'center', elevation: 2 },
-  productImage: { width: 60, height: 60, borderRadius: 8, marginRight: 12, backgroundColor: '#eee' },
-  info: { flex: 1 },
-  prodName: { fontWeight: 'bold', fontSize: 15, color: '#333' },
-  prodCategory: { fontSize: 11, color: '#007AFF', marginBottom: 2 },
-  prodPrice: { color: '#2e7d32', fontWeight: 'bold', fontSize: 13 },
-  prodStock: { color: '#666', fontSize: 12 },
-  actionRow: { gap: 10 },
-  editText: { color: '#007AFF', fontWeight: '600' },
-  deleteText: { color: '#d32f2f', fontWeight: '600' }
-});

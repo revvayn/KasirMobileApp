@@ -1,16 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  View, 
-  Text, 
-  FlatList, 
-  StyleSheet, 
-  Image, 
-  TouchableOpacity, 
-  Button, 
-  Alert, 
-  Platform 
+import {
+  View,
+  Text,
+  FlatList,
+  Image,
+  TouchableOpacity,
+  Alert,
+  Platform,
 } from 'react-native';
 import { getProducts } from '../services/productService';
+import colors from '../theme/colors';
 
 export default function HomeScreen({ navigation }) {
   const [products, setProducts] = useState([]);
@@ -78,13 +77,13 @@ export default function HomeScreen({ navigation }) {
 
       const price = Number(product.price || 0);
       return [
-        ...prevCart, 
-        { 
-          ...product, 
+        ...prevCart,
+        {
+          ...product,
           firestoreDocId: productId,
-          qty: 1, 
-          subtotal: price 
-        }
+          qty: 1,
+          subtotal: price,
+        },
       ];
     });
   };
@@ -129,90 +128,145 @@ export default function HomeScreen({ navigation }) {
     });
   };
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.headerTitle}>Katalog Produk</Text>
+  const totalItemsInCart = cart.reduce((sum, item) => sum + item.qty, 0);
 
-      {/* Grid / List Produk */}
+  const navItems = [
+    { key: 'Dashboard', label: 'Dashboard' },
+    { key: 'ProductManager', label: 'Produk' },
+    { key: 'History', label: 'Riwayat' },
+    { key: 'QRISSetting', label: 'QRIS' },
+  ];
+
+  return (
+    <View className="flex-1 bg-bg px-4 pt-4">
+      {/* Header */}
+      <View className="flex-row justify-between items-start mb-4">
+        <View>
+          <Text className="text-2xl font-extrabold text-ink -tracking-tight">Katalog Produk</Text>
+          <Text className="text-[13px] font-medium text-ink-muted mt-0.5">
+            {products.length} produk tersedia
+          </Text>
+        </View>
+        {totalItemsInCart > 0 && (
+          <View className="bg-primary px-3.5 py-1.5 rounded-full flex-row items-center">
+            <View className="w-1.5 h-1.5 rounded-full bg-accent mr-2" />
+            <Text className="text-white font-bold text-[13px]">{totalItemsInCart} item</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Grid Produk */}
       <FlatList
         data={products}
         keyExtractor={(item, index) => String(getDocId(item) || index)}
         numColumns={2}
-        columnWrapperStyle={styles.row}
+        columnWrapperStyle={{ justifyContent: 'space-between', marginBottom: 12 }}
+        contentContainerStyle={{ paddingBottom: 12 }}
+        showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
           const itemId = getDocId(item);
           const inCartItem = cart.find((c) => getDocId(c) === itemId);
           const cartQty = inCartItem ? inCartItem.qty : 0;
+          const outOfStock = Number(item.stock || 0) <= 0;
 
           return (
-            <TouchableOpacity 
-              style={styles.productCard} 
+            <TouchableOpacity
+              className={`basis-[48%] bg-surface rounded-card p-3 shadow-md border-[1.5px] ${
+                cartQty > 0 ? 'border-accent' : 'border-transparent'
+              }`}
               onPress={() => addToCart(item)}
-              activeOpacity={0.8}
+              activeOpacity={0.85}
+              disabled={outOfStock}
             >
-              <Image
-                source={{ uri: item.imageUrl || 'https://via.placeholder.com/150' }}
-                style={styles.cardImage}
-              />
-              <Text style={styles.productName} numberOfLines={1}>{item.name || item.nama}</Text>
-              <Text style={styles.productPrice}>Rp {Number(item.price || 0).toLocaleString('id-ID')}</Text>
-              <Text style={styles.productStock}>Stok: {item.stock}</Text>
+              <View className="rounded-2xl overflow-hidden mb-2 bg-surface-alt">
+                <Image
+                  source={{ uri: item.imageUrl || 'https://via.placeholder.com/150' }}
+                  className="w-full h-[108px]"
+                  resizeMode="cover"
+                />
+                {outOfStock && (
+                  <View className="absolute inset-0 bg-black/55 items-center justify-center">
+                    <Text className="text-white font-extrabold text-xs tracking-wide">Habis</Text>
+                  </View>
+                )}
+              </View>
+
+              <Text className="text-sm font-bold text-ink mb-1.5" numberOfLines={1}>
+                {item.name || item.nama}
+              </Text>
+
+              <View className="flex-row items-center justify-between">
+                <Text className="text-[15px] font-extrabold text-ink shrink">
+                  Rp {Number(item.price || 0).toLocaleString('id-ID')}
+                </Text>
+                <View className="bg-surface-alt rounded-full px-2 py-0.5 ml-1.5">
+                  <Text className="text-[10px] font-bold text-accent">Stok {item.stock}</Text>
+                </View>
+              </View>
 
               {cartQty > 0 && (
-                <View style={styles.qtyBadgeContainer}>
-                  <TouchableOpacity style={styles.qtyBtn} onPress={() => removeFromCart(item)}>
-                    <Text style={styles.qtyBtnText}>-</Text>
+                <View className="flex-row items-center justify-center mt-2 bg-bg rounded-full py-1">
+                  <TouchableOpacity
+                    className="w-[26px] h-[26px] rounded-full bg-primary items-center justify-center"
+                    onPress={() => removeFromCart(item)}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Text className="text-base font-bold text-white -mt-px">–</Text>
                   </TouchableOpacity>
-                  <Text style={styles.cartQtyText}>{cartQty}</Text>
-                  <TouchableOpacity style={styles.qtyBtn} onPress={() => addToCart(item)}>
-                    <Text style={styles.qtyBtnText}>+</Text>
+                  <Text className="font-extrabold mx-4 text-ink text-sm">{cartQty}</Text>
+                  <TouchableOpacity
+                    className="w-[26px] h-[26px] rounded-full bg-primary items-center justify-center"
+                    onPress={() => addToCart(item)}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Text className="text-base font-bold text-white -mt-px">+</Text>
                   </TouchableOpacity>
                 </View>
               )}
             </TouchableOpacity>
           );
         }}
+        ListEmptyComponent={
+          <View className="items-center py-16">
+            <View className="w-14 h-14 rounded-full border-2 border-dashed border-hairline items-center justify-center mb-3" />
+            <Text className="text-[13px] font-medium text-ink-muted">Belum ada produk</Text>
+          </View>
+        }
       />
 
-      {/* Ringkasan Keranjang */}
-      <View style={styles.cartContainer}>
-        <Text style={styles.cartTitle}>Keranjang ({cart.length} Jenis)</Text>
-        <Text style={styles.cartTotal}>Total: Rp {calculateTotal().toLocaleString('id-ID')}</Text>
-        
-        <Button 
-          title="Lanjut Pembayaran" 
-          color="#2e7d32" 
-          onPress={handleCheckout} 
-          disabled={cart.length === 0} 
-        />
+      {/* Ringkasan Keranjang mengambang */}
+      <View className="bg-surface rounded-card p-4 mt-2 mb-2 shadow-xl">
+        <View className="flex-row justify-between items-center mb-3">
+          <Text className="text-sm font-medium text-ink-muted">Keranjang · {cart.length} jenis</Text>
+          <Text className="text-xl font-extrabold text-ink">Rp {calculateTotal().toLocaleString('id-ID')}</Text>
+        </View>
+
+        <TouchableOpacity
+          className={`rounded-2xl py-3.5 items-center ${cart.length === 0 ? 'bg-hairline' : 'bg-primary'}`}
+          onPress={handleCheckout}
+          disabled={cart.length === 0}
+          activeOpacity={0.9}
+        >
+          <Text className="text-white font-bold text-[15px] tracking-wide">Lanjut Pembayaran</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Navigasi Tambahan */}
-      <View style={styles.navRow}>
-        <Button title="📊 Dashboard" onPress={() => navigation.navigate('Dashboard')} color="#1e88e5" />
-        <Button title="📦 Produk" onPress={() => navigation.navigate('ProductManager')} color="#007AFF" />
-        <Button title="📜 Riwayat" onPress={() => navigation.navigate('History')} color="#555" />
-        <Button title="⚙️ QRIS" onPress={() => navigation.navigate('QRISSetting')} color="#e65100" />
+      <View className="flex-row justify-between mb-4 gap-2">
+        {navItems.map((nav) => (
+          <TouchableOpacity
+            key={nav.key}
+            className="flex-1 items-center bg-surface rounded-2xl py-3 border border-hairline"
+            onPress={() => navigation.navigate(nav.key)}
+            activeOpacity={0.75}
+          >
+            <View className="w-7 h-7 rounded-full bg-surface-alt items-center justify-center mb-1.5">
+              <Text className="text-[11px] font-extrabold text-accent">{nav.label.charAt(0)}</Text>
+            </View>
+            <Text className="text-[11px] font-bold text-ink">{nav.label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 12, backgroundColor: '#f4f6f8' },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 12 },
-  row: { justifyContent: 'space-between', marginBottom: 12 },
-  productCard: { flex: 0.48, backgroundColor: '#fff', borderRadius: 10, padding: 10, elevation: 2, alignItems: 'center' },
-  cardImage: { width: '100%', height: 100, borderRadius: 8, marginBottom: 8, backgroundColor: '#eee' },
-  productName: { fontWeight: 'bold', fontSize: 14, color: '#333' },
-  productPrice: { color: '#2e7d32', fontWeight: 'bold', marginTop: 2 },
-  productStock: { fontSize: 11, color: '#777', marginTop: 2 },
-  qtyBadgeContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 8, backgroundColor: '#e8f5e9', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  qtyBtn: { paddingHorizontal: 8, paddingVertical: 2 },
-  qtyBtnText: { fontSize: 16, fontWeight: 'bold', color: '#2e7d32' },
-  cartQtyText: { fontWeight: 'bold', marginHorizontal: 6, color: '#333' },
-  cartContainer: { backgroundColor: '#fff', padding: 14, borderRadius: 10, elevation: 3, marginTop: 8 },
-  cartTitle: { fontWeight: 'bold', fontSize: 14 },
-  cartTotal: { fontSize: 18, fontWeight: 'bold', color: '#2e7d32', marginVertical: 6 },
-  navRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, gap: 4 }
-});

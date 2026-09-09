@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, TouchableOpacity, Alert, Platform } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, Alert, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getTransactions, filterTransactionsByPeriod, deleteTransaction, deleteTransactionsByBatch } from '../services/transactionService';
 import FilterBar from '../components/FilterBar';
+import colors from '../theme/colors';
 
 export default function HistoryScreen({ navigation }) {
     const [allTransactions, setAllTransactions] = useState([]);
@@ -187,12 +188,12 @@ export default function HistoryScreen({ navigation }) {
     };
 
     return (
-        <View style={styles.container}>
-            <View style={styles.headerRow}>
-                <Text style={styles.title}>Riwayat Penjualan</Text>
+        <View className="flex-1 p-4 bg-bg">
+            <View className="flex-row justify-between items-center mb-3">
+                <Text className="text-xl font-extrabold text-ink">Riwayat Penjualan</Text>
                 {filteredTransactions.length > 0 && (
-                    <TouchableOpacity style={styles.btnBulkDelete} onPress={handleDeleteByFilter}>
-                        <Text style={styles.btnBulkDeleteText}>🗑️ Hapus Filter Ini</Text>
+                    <TouchableOpacity className="bg-danger-soft px-2.5 py-1.5 rounded-lg border border-danger" onPress={handleDeleteByFilter} activeOpacity={0.8}>
+                        <Text className="text-danger font-bold text-xs">Hapus Filter Ini</Text>
                     </TouchableOpacity>
                 )}
             </View>
@@ -206,9 +207,9 @@ export default function HistoryScreen({ navigation }) {
             />
 
             {loading && page === 1 ? (
-                <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 20 }} />
+                <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 24 }} />
             ) : displayedTransactions.length === 0 ? (
-                <Text style={styles.emptyText}>Tidak ada riwayat transaksi pada periode ini.</Text>
+                <Text className="text-center text-ink-muted mt-8">Tidak ada riwayat transaksi pada periode ini.</Text>
             ) : (
                 <FlatList
                     data={displayedTransactions}
@@ -220,27 +221,27 @@ export default function HistoryScreen({ navigation }) {
                         const itemId = getDocId(item);
 
                         return (
-                            <TouchableOpacity style={styles.card} onPress={() => handleDetail(item)} activeOpacity={0.8}>
-                                <View style={styles.cardHeader}>
+                            <TouchableOpacity className="bg-surface p-3.5 rounded-card mb-3 shadow-md" onPress={() => handleDetail(item)} activeOpacity={0.8}>
+                                <View className="flex-row justify-between mb-2 border-b border-hairline pb-1.5">
                                     <View>
-                                        <Text style={styles.transId}>
-                                            ID: #{itemId ? String(itemId).substring(0, 8) : 'N/A'}
+                                        <Text className="font-bold text-ink">
+                                            #{itemId ? String(itemId).substring(0, 8) : 'N/A'}
                                         </Text>
-                                        <Text style={styles.timeText}>🕒 {item.formattedTime || 'Baru Saja'}</Text>
+                                        <Text className="text-[11px] text-ink-muted mt-0.5 mb-1">{item.formattedTime || 'Baru Saja'}</Text>
 
-                                        <View style={[styles.methodBadge, item.paymentMethod === 'QRIS' ? styles.badgeQris : styles.badgeCash]}>
-                                            <Text style={styles.methodText}>
-                                                {item.paymentMethod === 'QRIS' ? '📱 QRIS' : '💵 CASH'}
+                                        <View className={`self-start px-2 py-0.5 rounded mt-1 ${item.paymentMethod === 'QRIS' ? 'bg-accent-soft' : 'bg-success-soft'}`}>
+                                            <Text className={`text-[11px] font-bold tracking-wide ${item.paymentMethod === 'QRIS' ? 'text-accent' : 'text-success'}`}>
+                                                {item.paymentMethod === 'QRIS' ? 'QRIS' : 'TUNAI'}
                                             </Text>
                                         </View>
                                     </View>
 
-                                    <View style={{ alignItems: 'flex-end' }}>
-                                        <Text style={styles.totalText}>
+                                    <View className="items-end">
+                                        <Text className="font-extrabold text-success text-base">
                                             Rp {Number(item.totalAmount || 0).toLocaleString('id-ID')}
                                         </Text>
                                         {item.paymentMethod === 'CASH' && item.change > 0 && (
-                                            <Text style={styles.changeText}>
+                                            <Text className="text-[11px] text-danger mt-0.5">
                                                 Kembali: Rp {Number(item.change || 0).toLocaleString('id-ID')}
                                             </Text>
                                         )}
@@ -248,25 +249,26 @@ export default function HistoryScreen({ navigation }) {
                                 </View>
 
                                 {/* Ringkasan Item */}
-                                <View style={styles.itemList}>
+                                <View className="my-1.5">
                                     {rawItems.slice(0, 3).map((prod, idx) => (
-                                        <Text key={`${itemId || 'tx'}_item_${prod?.id || idx}`} style={styles.itemText} numberOfLines={1}>
+                                        <Text key={`${itemId || 'tx'}_item_${prod?.id || idx}`} className="text-[13px] text-ink-muted mb-0.5" numberOfLines={1}>
                                             • {prod?.name || prod?.nama || 'Produk'} x{prod?.qty || prod?.quantity || 1} = Rp {Number(prod?.subtotal || (prod?.price * (prod?.qty || 1)) || 0).toLocaleString('id-ID')}
                                         </Text>
                                     ))}
                                     {rawItems.length > 3 && (
-                                        <Text style={styles.moreItemsText}>+ {rawItems.length - 3} produk lainnya...</Text>
+                                        <Text className="text-[11px] text-accent italic mt-0.5 font-semibold">+ {rawItems.length - 3} produk lainnya...</Text>
                                     )}
                                 </View>
 
                                 {/* Action Buttons */}
-                                <View style={styles.actionRow}>
-                                    <TouchableOpacity style={styles.btnDetail} onPress={() => handleDetail(item)}>
-                                        <Text style={styles.btnDetailText}>👁️ Lihat Detail</Text>
+                                <View className="flex-row justify-between mt-2.5 pt-2 border-t border-hairline gap-2">
+                                    <TouchableOpacity className="bg-primary py-2 px-3.5 rounded-lg items-center flex-[0.68]" onPress={() => handleDetail(item)} activeOpacity={0.85}>
+                                        <Text className="text-white font-bold text-[13px]">Lihat Detail</Text>
                                     </TouchableOpacity>
 
                                     <TouchableOpacity
-                                        style={styles.btnDelete}
+                                        className="bg-danger-soft py-2 px-3.5 rounded-lg items-center flex-[0.28] border border-danger"
+                                        activeOpacity={0.85}
                                         onPress={(e) => {
                                             if (e && typeof e.stopPropagation === 'function') {
                                                 e.stopPropagation();
@@ -274,7 +276,7 @@ export default function HistoryScreen({ navigation }) {
                                             handleDeleteSingle(item);
                                         }}
                                     >
-                                        <Text style={styles.btnDeleteText}>🗑️ Hapus</Text>
+                                        <Text className="text-danger font-bold text-[13px]">Hapus</Text>
                                     </TouchableOpacity>
                                 </View>
                             </TouchableOpacity>
@@ -282,8 +284,8 @@ export default function HistoryScreen({ navigation }) {
                     }}
                     ListFooterComponent={() =>
                         displayedTransactions.length < filteredTransactions.length ? (
-                            <TouchableOpacity style={styles.btnLoadMore} onPress={handleLoadMore}>
-                                <Text style={styles.btnLoadMoreText}>
+                            <TouchableOpacity className="bg-surface border border-hairline p-3 rounded-2xl items-center my-3" onPress={handleLoadMore} activeOpacity={0.85}>
+                                <Text className="text-ink font-bold">
                                     Muat Lebih Banyak ({filteredTransactions.length - displayedTransactions.length})
                                 </Text>
                             </TouchableOpacity>
@@ -294,32 +296,3 @@ export default function HistoryScreen({ navigation }) {
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-    container: { flex: 1, padding: 16, backgroundColor: '#f4f6f8' },
-    headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-    title: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-    btnBulkDelete: { backgroundColor: '#ffebee', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, borderWidth: 1, borderColor: '#ef5350' },
-    btnBulkDeleteText: { color: '#c62828', fontWeight: 'bold', fontSize: 12 },
-    emptyText: { textAlign: 'center', color: '#888', marginTop: 30 },
-    card: { backgroundColor: '#fff', padding: 14, borderRadius: 10, marginBottom: 12, elevation: 2 },
-    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 6 },
-    transId: { fontWeight: 'bold', color: '#333' },
-    timeText: { fontSize: 11, color: '#777', marginTop: 2, marginBottom: 4 },
-    totalText: { fontWeight: 'bold', color: '#2e7d32', fontSize: 16 },
-    changeText: { fontSize: 11, color: '#d32f2f', marginTop: 2 },
-    methodBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginTop: 4 },
-    badgeCash: { backgroundColor: '#e8f5e9' },
-    badgeQris: { backgroundColor: '#e3f2fd' },
-    methodText: { fontSize: 11, fontWeight: 'bold', color: '#333' },
-    itemList: { marginVertical: 6 },
-    itemText: { fontSize: 13, color: '#444', marginBottom: 2 },
-    moreItemsText: { fontSize: 11, color: '#007AFF', fontStyle: 'italic', marginTop: 2 },
-    actionRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#f0f0f0' },
-    btnDetail: { backgroundColor: '#007AFF', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 6, flex: 0.68, alignItems: 'center' },
-    btnDetailText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
-    btnDelete: { backgroundColor: '#ffebee', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 6, flex: 0.28, alignItems: 'center', borderWidth: 1, borderColor: '#ffcdd2' },
-    btnDeleteText: { color: '#c62828', fontWeight: 'bold', fontSize: 13 },
-    btnLoadMore: { backgroundColor: '#e0e0e0', padding: 12, borderRadius: 8, alignItems: 'center', marginVertical: 12 },
-    btnLoadMoreText: { color: '#333', fontWeight: 'bold' },
-});

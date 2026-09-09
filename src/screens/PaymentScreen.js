@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, Image, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { getQRISUrl, processPayment } from '../services/paymentService';
+import colors from '../theme/colors';
 
 export default function PaymentScreen({ route, navigation }) {
   const { cartItems = [], totalAmount = 0 } = route.params || {};
@@ -84,84 +85,70 @@ export default function PaymentScreen({ route, navigation }) {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Metode Pembayaran</Text>
+    <ScrollView className="flex-1 bg-bg" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+      <Text className="text-xl font-extrabold text-ink -tracking-tight mb-4">Metode Pembayaran</Text>
 
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryTitle}>Total Tagihan:</Text>
-        <Text style={styles.totalText}>Rp {totalAmount.toLocaleString('id-ID')}</Text>
+      <View className="bg-primary p-4 rounded-card mb-4 items-center shadow-md">
+        <Text className="text-[13px] text-white opacity-75 font-semibold">Total Tagihan</Text>
+        <Text className="text-[26px] font-extrabold text-white mt-1">Rp {totalAmount.toLocaleString('id-ID')}</Text>
       </View>
 
-      <View style={styles.methodContainer}>
+      <View className="flex-row justify-between mb-4 gap-3">
         <TouchableOpacity
-          style={[styles.methodButton, paymentMethod === 'CASH' && styles.selectedMethod]}
+          className={`flex-1 py-4 rounded-2xl border-[1.5px] items-center ${
+            paymentMethod === 'CASH' ? 'border-primary bg-primary' : 'border-hairline bg-surface'
+          }`}
           onPress={() => setPaymentMethod('CASH')}
+          activeOpacity={0.85}
         >
-          <Text style={[styles.methodText, paymentMethod === 'CASH' && styles.selectedMethodText]}>💵 Tunai (CASH)</Text>
+          <Text className={`font-bold text-[15px] tracking-wide ${paymentMethod === 'CASH' ? 'text-white' : 'text-ink-muted'}`}>TUNAI</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.methodButton, paymentMethod === 'QRIS' && styles.selectedMethod]}
+          className={`flex-1 py-4 rounded-2xl border-[1.5px] items-center ${
+            paymentMethod === 'QRIS' ? 'border-primary bg-primary' : 'border-hairline bg-surface'
+          }`}
           onPress={() => setPaymentMethod('QRIS')}
+          activeOpacity={0.85}
         >
-          <Text style={[styles.methodText, paymentMethod === 'QRIS' && styles.selectedMethodText]}>📱 QRIS</Text>
+          <Text className={`font-bold text-[15px] tracking-wide ${paymentMethod === 'QRIS' ? 'text-white' : 'text-ink-muted'}`}>QRIS</Text>
         </TouchableOpacity>
       </View>
 
       {paymentMethod === 'CASH' && (
-        <View style={styles.sectionBox}>
-          <Text style={styles.label}>Nominal Uang Diterima:</Text>
+        <View className="bg-surface p-4 rounded-card mb-4 items-center shadow-md">
+          <Text className="text-xs font-bold text-ink self-start mb-2">Nominal Uang Diterima</Text>
           <TextInput
-            style={styles.input}
+            className="w-full border border-hairline rounded-lg p-2.5 mb-3 bg-bg text-ink text-[15px]"
             placeholder="Contoh: 50000"
+            placeholderTextColor={colors['ink-muted']}
             keyboardType="numeric"
             value={cashReceived}
             onChangeText={handleCashChange}
           />
-          <Text style={styles.label}>Kembalian:</Text>
-          <Text style={styles.changeText}>Rp {change.toLocaleString('id-ID')}</Text>
+          <Text className="text-xs font-bold text-ink self-start mb-2">Kembalian</Text>
+          <Text className="text-xl font-extrabold text-danger self-start">Rp {change.toLocaleString('id-ID')}</Text>
         </View>
       )}
 
       {paymentMethod === 'QRIS' && (
-        <View style={styles.sectionBox}>
-          <Text style={styles.label}>Scan QRIS di Bawah Ini:</Text>
+        <View className="bg-surface p-4 rounded-card mb-4 items-center shadow-md">
+          <Text className="text-xs font-bold text-ink self-start mb-2">Scan QRIS di Bawah Ini</Text>
           {qrisUrl ? (
-            <Image source={{ uri: qrisUrl }} style={styles.qrisImage} />
+            <Image source={{ uri: qrisUrl }} className="w-[200px] h-[200px] rounded-2xl my-2" />
           ) : (
-            <Text style={styles.errorText}>Belum ada QRIS yang diupload. Silakan atur di menu QRIS.</Text>
+            <Text className="text-danger my-2 text-center">Belum ada QRIS yang diupload. Silakan atur di menu QRIS.</Text>
           )}
         </View>
       )}
 
       {loading ? (
-        <ActivityIndicator size="large" color="#2e7d32" style={{ marginTop: 20 }} />
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 24 }} />
       ) : (
-        <TouchableOpacity style={styles.btnFinish} onPress={handleFinishPayment}>
-          <Text style={styles.btnFinishText}>Selesaikan Transaksi</Text>
+        <TouchableOpacity className="bg-primary p-4 rounded-2xl items-center mb-8" onPress={handleFinishPayment} activeOpacity={0.9}>
+          <Text className="text-white font-bold text-base">Selesaikan Transaksi</Text>
         </TouchableOpacity>
       )}
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#f4f6f8' },
-  title: { fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
-  summaryCard: { backgroundColor: '#fff', padding: 16, borderRadius: 10, marginBottom: 16, elevation: 2, alignItems: 'center' },
-  summaryTitle: { fontSize: 14, color: '#666' },
-  totalText: { fontSize: 24, fontWeight: 'bold', color: '#2e7d32', marginTop: 4 },
-  methodContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  methodButton: { flex: 0.48, padding: 14, borderRadius: 8, borderWidth: 1, borderColor: '#ccc', backgroundColor: '#fff', alignItems: 'center' },
-  selectedMethod: { borderColor: '#2e7d32', backgroundColor: '#e8f5e9' },
-  methodText: { fontWeight: 'bold', color: '#555' },
-  selectedMethodText: { color: '#2e7d32' },
-  sectionBox: { backgroundColor: '#fff', padding: 16, borderRadius: 10, elevation: 2, marginBottom: 16, alignItems: 'center' },
-  label: { fontSize: 14, fontWeight: 'bold', color: '#333', alignSelf: 'flex-start', marginBottom: 8 },
-  input: { width: '100%', borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 12, backgroundColor: '#fff' },
-  changeText: { fontSize: 18, fontWeight: 'bold', color: '#d32f2f', alignSelf: 'flex-start' },
-  qrisImage: { width: 200, height: 200, borderRadius: 8, marginVertical: 10 },
-  errorText: { color: '#d32f2f', marginVertical: 10, textAlign: 'center' },
-  btnFinish: { backgroundColor: '#2e7d32', padding: 16, borderRadius: 8, alignItems: 'center', marginBottom: 30 },
-  btnFinishText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-});
