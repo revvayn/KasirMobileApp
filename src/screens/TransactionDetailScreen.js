@@ -12,6 +12,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { getTransactionProfit } from '../services/transactionService';
 import { getItemOptionsLabel } from '../utils/cartLabel';
+import { buildReceiptHtml, getInvoiceNumber, getItemsDiscountAmount } from '../utils/receiptHtml';
 import colors from '../theme/colors';
 
 export default function TransactionDetailScreen({ route, navigation }) {
@@ -32,6 +33,9 @@ export default function TransactionDetailScreen({ route, navigation }) {
 
   const rawItems = Array.isArray(transaction.items) ? transaction.items.flat() : [];
   const profitData = getTransactionProfit(transaction);
+  const itemsDiscount = getItemsDiscountAmount(rawItems);
+  const invoiceDiscount = Number(transaction.discountAmount || 0);
+  const totalDiscount = itemsDiscount + invoiceDiscount;
 
   // Helper Alert Lintas Platform
   const showAlert = (title, message) => {
@@ -42,101 +46,11 @@ export default function TransactionDetailScreen({ route, navigation }) {
     }
   };
 
-  // HTML Template untuk Struk Thermal 58mm / A4 PDF
-  const generateReceiptHTML = () => {
-    const itemsHtml = rawItems
-      .map(
-        (item) => `
-        <tr>
-          <td style="padding: 4px 0; font-size: 12px;">
-            ${item?.name || item?.nama || 'Produk'} x${item?.qty || item?.quantity || 1}
-            ${(() => {
-              const opts = getItemOptionsLabel(item);
-              return opts
-                ? `<br/><span style="font-size: 10px;">${opts.replace(/"/g, '&quot;')}</span>`
-                : '';
-            })()}
-          </td>
-          <td style="padding: 4px 0; font-size: 12px; text-align: right;">Rp ${(
-            Number(item?.subtotal || (item?.price * (item?.qty || 1)) || 0)
-          ).toLocaleString('id-ID')}</td>
-        </tr>
-      `
-      )
-      .join('');
-
-    return `
-      <html>
-        <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
-          <style>
-            body { 
-              font-family: 'Courier New', Courier, monospace; 
-              width: 280px; 
-              margin: 0 auto; 
-              padding: 10px; 
-            }
-            .text-center { text-align: center; }
-            .divider { border-top: 1px dashed #000; margin: 8px 0; }
-            table { width: 100%; border-collapse: collapse; }
-            .row-flex { display: flex; justify-content: space-between; font-size: 12px; margin: 2px 0; }
-            .bold { font-weight: bold; }
-          </style>
-        </head>
-        <body>
-          <div class="text-center">
-            <h2 style="margin: 0;">STRUK PENJUALAN</h2>
-            <p style="font-size: 10px; margin: 2px 0;">ID: #${transaction.id ? String(transaction.id).substring(0, 10) : 'N/A'}</p>
-            <p style="font-size: 10px; margin: 2px 0;">${transaction.formattedTime || new Date().toLocaleString('id-ID')}</p>
-          </div>
-
-          <div class="divider"></div>
-
-          <table>
-            ${itemsHtml}
-          </table>
-
-          <div class="divider"></div>
-
-          <div class="row-flex">
-            <span>Metode:</span>
-            <span class="bold">${transaction.paymentMethod || 'CASH'}</span>
-          </div>
-          <div class="row-flex" style="font-size: 14px; margin-top: 4px;">
-            <span class="bold">TOTAL:</span>
-            <span class="bold">Rp ${Number(transaction.totalAmount || 0).toLocaleString('id-ID')}</span>
-          </div>
-
-          ${
-            transaction.paymentMethod === 'CASH'
-              ? `
-            <div class="row-flex">
-              <span>Bayar:</span>
-              <span>Rp ${Number(transaction.cashReceived || transaction.totalAmount || 0).toLocaleString('id-ID')}</span>
-            </div>
-            <div class="row-flex">
-              <span>Kembali:</span>
-              <span>Rp ${Number(transaction.change || 0).toLocaleString('id-ID')}</span>
-            </div>
-          `
-              : ''
-          }
-
-          <div class="divider"></div>
-          <div class="text-center" style="margin-top: 10px; font-size: 11px;">
-            <p style="margin: 0;">Terima Kasih</p>
-            <p style="margin: 2px 0;">Selamat Belanja Kembali!</p>
-          </div>
-        </body>
-      </html>
-    `;
-  };
-
   // 1. Eksekusi Cetak Resi
   const handlePrint = async () => {
     try {
       setPrinting(true);
-      const html = generateReceiptHTML();
+      const html = buildReceiptHtml(transaction);
 
       if (Platform.OS === 'web') {
         await Print.printAsync({ html });
@@ -155,7 +69,7 @@ export default function TransactionDetailScreen({ route, navigation }) {
   const handleDownloadPDF = async () => {
     try {
       setDownloading(true);
-      const html = generateReceiptHTML();
+      const html = buildReceiptHtml(transaction);
 
       // 1. Penanganan khusus untuk platform Web
       if (Platform.OS === 'web') {
@@ -194,7 +108,7 @@ export default function TransactionDetailScreen({ route, navigation }) {
     <ScrollView className="flex-1 p-4 bg-bg">
       <View className="bg-surface p-4 rounded-card shadow-md mb-4">
         <Text className="text-lg font-extrabold text-ink">Rincian Transaksi</Text>
-        <Text className="text-[13px] text-ink-muted mt-0.5">#{transaction.id ? String(transaction.id).substring(0, 10) : 'N/A'}</Text>
+        <Text className="text-[13px] text-ink-muted mt-0.5">{getInvoiceNumber(transaction)}</Text>
         <Text className="text-xs text-ink-muted mt-0.5">{transaction.formattedTime || 'Baru Saja'}</Text>
 
         <View className="h-px bg-hairline my-2.5" />
@@ -202,6 +116,7 @@ export default function TransactionDetailScreen({ route, navigation }) {
         <Text className="font-bold text-ink mb-2">Produk Dibeli:</Text>
         {rawItems.map((item, index) => {
           const optionsLabel = getItemOptionsLabel(item);
+          const itemDiscount = Number(item.discountPercent || 0);
           return (
             <View key={item?.firestoreDocId || item?.id || index} className="mb-1.5">
               <View className="flex-row justify-between">
@@ -212,9 +127,9 @@ export default function TransactionDetailScreen({ route, navigation }) {
                   Rp {Number(item?.subtotal || (item?.price * (item?.qty || 1)) || 0).toLocaleString('id-ID')}
                 </Text>
               </View>
-              {optionsLabel ? (
+              {(optionsLabel || itemDiscount > 0) ? (
                 <Text className="text-[11px] font-medium text-ink-muted ml-1 mt-0.5" numberOfLines={2}>
-                  {optionsLabel}
+                  {[optionsLabel, itemDiscount > 0 ? `diskon ${itemDiscount}%` : null].filter(Boolean).join(' · ')}
                 </Text>
               ) : null}
             </View>
@@ -227,6 +142,13 @@ export default function TransactionDetailScreen({ route, navigation }) {
           <Text className="text-ink-muted text-sm">Metode Pembayaran:</Text>
           <Text className="font-bold text-ink text-sm">{transaction.paymentMethod}</Text>
         </View>
+
+        {totalDiscount > 0 && (
+          <View className="flex-row justify-between my-1">
+            <Text className="text-ink-muted text-sm">Diskon:</Text>
+            <Text className="font-bold text-danger text-sm">-Rp {totalDiscount.toLocaleString('id-ID')}</Text>
+          </View>
+        )}
 
         <View className="flex-row justify-between my-1">
           <Text className="text-ink-muted text-sm">Total Tagihan:</Text>
@@ -273,7 +195,6 @@ export default function TransactionDetailScreen({ route, navigation }) {
 
       {/* Action Buttons */}
       <View className="flex-row justify-between mb-2.5 gap-2.5">
-        {/* Tombol Cetak Resi */}
         <TouchableOpacity 
           className={`flex-1 bg-primary p-3.5 rounded-2xl items-center ${printing ? 'opacity-60' : ''}`}
           onPress={handlePrint}
@@ -287,6 +208,18 @@ export default function TransactionDetailScreen({ route, navigation }) {
           )}
         </TouchableOpacity>
 
+        <TouchableOpacity
+          className={`flex-1 bg-surface border border-hairline p-3.5 rounded-2xl items-center ${downloading ? 'opacity-60' : ''}`}
+          onPress={handleDownloadPDF}
+          disabled={printing || downloading}
+          activeOpacity={0.9}
+        >
+          {downloading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : (
+            <Text className="text-ink font-bold text-[15px]">Bagikan PDF</Text>
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* Tombol Kembali ke Riwayat */}

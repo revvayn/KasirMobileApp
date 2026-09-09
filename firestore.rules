@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper: hanya user yang login yang boleh mengakses dokumennya sendiri.
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Katalog produk: dibaca oleh semua pengguna login, ditulis admin.
+    match /products/{productId} {
+      allow read: if signedIn();
+      allow create, update, delete: if signedIn() && isAdmin();
+    }
+
+    // Transaksi: kasir & admin boleh membuat/membaca/menghapus.
+    match /transactions/{transactionId} {
+      allow read, create, delete: if signedIn();
+      allow update: if signedIn() && isAdmin();
+    }
+
+    // Pengguna: setiap user membaca/update dirinya; admin kelola semua.
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if signedIn() && isAdmin();
+    }
+
+    // Settings (QRIS dll): dibaca kasir & admin, ditulis admin.
+    match /settings/{docId} {
+      allow read: if signedIn();
+      allow write: if signedIn() && isAdmin();
+    }
+
+    // Penghitung nomor invoice: hanya server-side writer (SDK admin) atau
+    // diizinkan untuk pengguna login yang membuat transaksi.
+    match /counters/{docId} {
+      allow read, write: if signedIn();
+    }
+  }
+}

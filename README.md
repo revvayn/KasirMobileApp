@@ -4,13 +4,17 @@ Aplikasi kasir (POS) berbasis **Expo SDK 57** (React Native + React Native Web) 
 
 ## Fitur
 
-- 📦 **Katalog & Manajemen Produk** — daftar produk 2 kolom, pencarian, tambah/edit/hapus produk lewat modal bottom sheet, upload foto via URL, statistik stok (menipis/habis), **varian** (cth. Panas/Dingin + tambahan harga) & **modifier** (cth. Level Pedas).
-- 🛒 **Keranjang & Pembayaran** — keranjang pintar memisahkan item beda varian/catatan (Kopi Panas vs Kopi Dingin), modal pilih varian/modifier/catatan, total harga otomatis.
-- 💵 **Pembayaran TUNAI & QRIS** — dukungan print struk dan QRIS.
-- 📊 **Dashboard Laporan** — Total Pendapatan, Total Transaksi, Item Terjual, Rata-rata Nilai, Item/Transaksi, Produk Terlaris (progress bar), Transaksi Terbaru; filter Hari Ini/Bulan/Tahun/Semua/Tanggal.
-- 🧾 **Riwayat Transaksi** — pagination, lihat detail, hapus per item / batch per filter.
-- 📈 **Export Excel** — ekspor laporan transaksi sesuai filter ke file `.xlsx` (2 sheet: Transaksi & Detail Penjualan). Berjalan di web (unduh langsung) & native (share sheet).
+- 🔐 **Login & Role** — akun **Admin** / **Kasir** berbasis Firebase Auth. Akun pertama yang dibuat otomatis jadi Admin; menu sensitif (Kelola Produk, Manajemen Pengguna, Pengaturan QRIS) hanya untuk Admin.
+- 📦 **Katalog & Manajemen Produk** — daftar produk 2 kolom, pencarian, tambah/edit/hapus produk lewat modal bottom sheet, upload foto via URL, statistik stok (menipis/habis ambang **Stok Minimum**), **varian** (cth. Panas/Dingin + tambahan harga) & **modifier** (cth. Level Pedas).
+- 🛒 **Keranjang & Pembayaran** — keranjang pintar memisahkan item beda varian/catatan (Kopi Panas vs Kopi Dingin), modal pilih varian/modifier/catatan, **diskon per item** (0–50%), total otomatis; keranjang **tersimpan otomatis** walau app ditutup.
+- 💵 **Pembayaran TUNAI & QRIS** — diskon invoice, auto-refresh QRIS 60 detik, cetak struk, dan **nomor invoice otomatis** (`INV-YYYYMMDD-NNNN`).
+- 🧾 **Riwayat Transaksi** — pagination, lihat detail, **cetak ulang struk**, hapus per item / batch per filter.
+- 📊 **Dashboard Laporan** — Total Pendapatan, Laba & Margin, Total Transaksi, Item Terjual, **Pendapatan per Kategori**, Produk Terlaris (progress bar), Transaksi Terbaru; filter Hari Ini/Bulan/Tahun/Semua/Tanggal/**Rentang**.
+- 🔁 **Rekap Shift / Penutupan** — layar **Closing**: ringkasan shift (total penjualan, tunai, QRIS, laba, per kategori, per kasir) + cetak/share PDF.
+- 👥 **Manajemen Pengguna** (Admin) — buat/hapus akun kasir, ubah role & nama.
+- 📈 **Export Excel** — ekspor laporan transaksi sesuai filter ke file `.xlsx` (2 sheet: Transaksi — dengan kolom **Nomor Invoice** & **Diskon** — dan Detail Penjualan). Berjalan di web (unduh langsung) & native (share sheet).
 - ⚡ **Stok atomis** — stok produk otomatis berkurang saat transaksi dibuat (`writeBatch` + `increment`).
+- 🔌 **Offline persistence (web)** — cache Firestore di browser (`persistentLocalCache`) sehingga data tetap terbaca saat offline.
 
 ## Tech Stack
 
@@ -44,7 +48,7 @@ npx expo install --fix
 
 ## Konfigurasi Firebase
 
-Project ini memakai Firebase secara langsung (tanpa dashboard auth). Ubah konfigurasi di `src/config/firebase.js`:
+Project ini memakai Firebase Auth + Firestore + Storage. Ubah konfigurasi di `src/config/firebase.js`:
 
 ```js
 const firebaseConfig = {
@@ -58,9 +62,17 @@ const firebaseConfig = {
 ```
 
 Aktifkan layanan:
-1. **Firestore Database** — buat collection `products` dan `transactions`.
-2. **(Opsional) Storage** untuk unggah gambar.
-3. Sesuaikan aturan keamanan (untuk pengembangan bisa `if false` / authenticated — sesuaikan kebutuhan Anda).
+1. **Firestore Database** — buat collection `products`, `transactions`, `users`, `settings`, `counters`.
+2. **Authentication** — aktifkan penyedia **Email/Password**.
+3. **(Opsional) Storage** untuk unggah gambar.
+4. **Rules (WAJIB sebelum dipakai)** — salin `firestore.rules` di root project ke tab Rules di console, lalu publish. Ringkas aturan:
+   - `products`/`transactions`/`counters`: hanya pengguna yang sudah login yang boleh baca/tulis produk & transaksi.
+   - `settings` (QRIS): baca untuk yang login, tulis hanya **admin**.
+   - `users`: user boleh tulis/update akunnya sendiri; **admin** boleh baca/tulis semua.
+
+### Bootstrap Akun Pertama
+
+Setelah dijadikan `authenticated` + rules aktif, buka aplikasi → pilih **"Belum punya akun? Buat akun pertama (Admin)"**. Akun pertama otomatis terdaftar sebagai **Admin**. Setelah itu **nonaktifkan pendaftaran publik** di `firestore.rules` (ubah `allow create: if signedIn()` di `users` menjadi `false`, atau hapus mode registrasi di `LoginScreen.js`) dan buat akun kasir lain lewat **Manajemen Pengguna**.
 
 ## Menjalankan Aplikasi
 
@@ -140,6 +152,7 @@ Hasil build muncul di halaman https://expo.dev/accounts/_/projects/KasirMobileAp
 | `imageUrl` | string | URL foto produk |
 | `category` | string | Kategori (opsional) |
 | `description` | string | Deskripsi (opsional) |
+| `minStock` | number | Ambang **Stok Minimum** (default 5) untuk badge "Menipis" |
 | `variants` | array | Varian `[{ id, name, extraPrice }]` — cth. Panas +Rp 0, Dingin +Rp 2.000 (opsional) |
 | `modifiers` | array | Modifier `[{ id, name, options: string[] }]` — cth. Level Pedas (opsional) |
 | `createdAt` | timestamp | Waktu dibuat |
@@ -148,50 +161,80 @@ Hasil build muncul di halaman https://expo.dev/accounts/_/projects/KasirMobileAp
 
 | Field | Tipe | Keterangan |
 |---|---|---|
-| `items` | array | Daftar keranjang `{ name, qty, price, cost (snapshot modal), variant, modifiers, customNote, unitPrice, subtotal, firestoreDocId }` |
-| `totalAmount` | number | Total transaksi |
+| `invoiceNumber` | string | Nomor invoice `INV-YYYYMMDD-NNNN` (counter harian di `counters/invoice-YYYYMMDD`) |
+| `items` | array | Daftar keranjang `{ name, qty, price, cost (snapshot modal), variant, modifiers, customNote, unitPrice, subtotal, discountPercent, firestoreDocId, category }` |
+| `subtotal` | number | Total semua item sebelum diskon invoice |
+| `discountPercent` | number | Diskon invoice (0–25%) |
+| `discountAmount` | number | Rupiah diskon invoice |
+| `totalAmount` | number | Total akhir yang dibayar (setelah semua diskon) |
 | `paymentMethod` | string | `CASH` / `QRIS` |
 | `paymentAmount` | number | Uang yang dibayar |
 | `cashReceived` | number | Alias uang yang dibayar (konsisten dengan detail struk) |
 | `change` | number | Kembalian |
+| `cashier` | object | `{ uid, email }` kasir yang menginput (opsional) |
 | `createdAt` | timestamp | Waktu transaksi (serverTimestamp) |
 | `formattedTime` | string | Waktu terformat (dihitung saat insert) |
 
-> **Penting:** `createTransaction`/`processPayment` memotong stok produk secara atomis lewat `writeBatch` + `increment(-qty)`. Setiap `item` menyimpan snapshot `cost` saat checkout agar laba historis tetap akurat.
+> **Penting:** `processPayment` memotong stok produk secara atomis lewat `writeBatch` + `increment(-qty)`. Setiap `item` menyimpan snapshot `cost` saat checkout agar laba historis tetap akurat. Nomor invoice di-generate lewat `runTransaction` di atas dokumen counter harian.
 
 ## Struktur Project
 
 ```
 src/
-  config/firebase.js           # Inisialisasi Firebase
+  config/firebase.js           # Inisialisasi Firebase (Auth + Firestore, offline web)
   theme/colors.js              # Palet warna (sumber kebenaran Tailwind + native)
   theme/theme.js
-  navigation/AppNavigator.js   # Stack navigator
-  screens/                     # Home, Dashboard, History, ProductManager,
-                               # Payment, QRISSetting, TransactionDetail
-  components/FilterBar.js      # Filter periode (Hari Ini/Bulan/Tahun/Semua/Tanggal)
-  components/ProductOptionModal.js # Modal pilih varian/modifier/catatan
+  navigation/AppNavigator.js   # Stack navigator + gate login (LoginScreen vs stack)
+  screens/                     # Login, Home, Dashboard, History, ProductManager,
+                               # Payment, QRISSetting, TransactionDetail, Closing,
+                               # UserManager
+  components/
+    FilterBar.js               # Filter periode (Hari Ini/Bulan/Tahun/Semua/Tanggal/Rentang)
+    ProductOptionModal.js      # Modal pilih varian/modifier/catatan + diskon item
+    CartItemsSheet.js          # Bottom sheet edit per-kombinasi di keranjang
   services/
     productService.js          # CRUD produk
     transactionService.js      # Transaksi + statistik + delete batch
-    paymentService.js
-  store/useCartStore.js        # Zustand store keranjang (unique cartId per varian)
-  utils/currency.js           # Format Rupiah (input live + parse + normalisasi)
-  utils/cartLabel.js          # Label varian/modifier/catatan (badge & struk)
-  utils/exportExcel.js        # Export transaksi ke .xlsx
+    paymentService.js          # Payment + invoice counter + QRIS
+    authService.js             # Auth email/password + role admin/kasir
+  store/
+    useCartStore.js            # Zustand store keranjang (persisted "kasir-cart")
+    useAuthStore.js            # Zustand store sesi (user + role)
+  utils/
+    currency.js                # Format Rupiah (input live + parse + normalisasi)
+    cartLabel.js               # Label varian/modifier/catatan (badge & struk)
+    exportExcel.js             # Export transaksi ke .xlsx
+    receiptHtml.js             # Builder HTML struk (dipakai semua layar cetak)
+```
+
+## Screen Baru
+
+| Screen | Fungsi | Akses |
+|---|---|---|
+| **Login** | Masuk email/password; mode "buat akun pertama" untuk bootstrap Admin | Publik |
+| **Closing** | Rekap shift/harian (total, tunai, QRIS, laba, per kategori, per kasir) + cetak/share PDF | Semua user login |
+| **UserManager** | Buat/hapus akun, ubah role & nama kasir | Admin |
+
+## Menjalankan Build Web
+
+```bash
+npm run build:web   # = npx expo export --platform web
 ```
 
 ## Screens & Alur
 
 | Screen | Fungsi |
 |---|---|
-| **Home** | Katalog produk 2 kolom, search, navigasi chips, keranjang, floating checkout |
-| **Dashboard** | Ringkasan laporan + filter + produk terlaris + transaksi terbaru |
-| **History** | Riwayat transaksi, pagination, hapus, export Excel |
-| **ProductManager** | CRUD produk dengan modal bottom sheet |
-| **Payment** | Input bayar tunai/QRIS, ringkasan pesanan (varian/badge), print struk |
-| **QRISSetting** | Pengaturan QRIS |
-| **TransactionDetail** | Detail transaksi setelah sukses |
+| **Login** | Autentikasi email/password; bootstrap akun admin pertama |
+| **Home** | Katalog produk 2 kolom, search, navigasi chips, keranjang (persisted + diskon), floating checkout |
+| **Dashboard** | Ringkasan laporan, laba/margin, pendapatan per kategori, produk terlaris, transaksi terbaru |
+| **History** | Riwayat transaksi, pagination, reprint struk, hapus, export Excel |
+| **ProductManager** | CRUD produk dengan modal bottom sheet (termasuk Stok Minimum) |
+| **Payment** | Input bayar tunai/QRIS, diskon invoice, auto-refresh QRIS, ringkasan pesanan, cetak struk |
+| **QRISSetting** | Pengaturan QRIS (admin) |
+| **TransactionDetail** | Detail transaksi setelah sukses (invoice number, diskon, cetak PDF) |
+| **Closing** | Rekap shift/harian + cetak/share |
+| **UserManager** | Manajemen pengguna (admin) |
 
 ## Konvensi Desain
 

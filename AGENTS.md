@@ -137,12 +137,37 @@ PENTING: Dokumen produk wajib punya stok yang cukup — `createTransaction` meng
 - Form tambah/edit dalam **Modal bottom sheet** (native `Modal` animationType slide) — pola yang dipilih agar list tetap rapi (badan form di dalam `ScrollView`, header/tombol tetap di bawah).
 - Seksi dinamis **Varian** (nama + tambahan harga `+Rp`, diformat `formatRupiahInput`, diparsing `parseRupiahInput` saat save) dan **Modifier** (nama grup + daftar opsi; tambah/hapus baris). Produk sembako/ritel cukup kosongkan seksi ini.
 - Validasi wajib: nama, harga jual ≥ 0, stok ≥ 0; **Harga Modal (Rp)** opsional (default = harga jual jika kosong). Konfirmasi hapus sebelum dieksekusi.
+- Field **Stok Minimum** (`minStock`, default 5): dipakai stat "Stok Menipis" & badge "Menipis"/"Habis" di list. `addProduct`/`updateProduct` menerima `minStock`.
+
+### Auth & Role (baru sejak sesi ini)
+- Firebase **Email/Password** (`src/config/firebase.js` export `auth`). `App.js` subscribe `onAuthStateChanged` → restore sesi ke `useAuthStore`.
+- `AppNavigator` **gate login**: jika `!user` render `LoginScreen` (di luar stack), jika `loading` render `null`.
+- Role disimpan di doc `users/{uid}` → `role: 'admin' | 'kasir'` (`ensureUserRole`). **Bootstrap**: user PERTAMA yang terdaftar otomatis Admin (via `registerUser` di LoginScreen); berikutnya jadi kasir. Akses menu admin di `HomeScreen.navItems` difilter `isAdmin`.
+- Rules wajib deploy: `firestore.rules` di root. Baca → semua yang login; tulis `users` → pemilik/`isAdmin()`; tulis `settings` → admin. Nonaktifkan pendaftaran publik di `users` setelah bootstrap (lihat README).
+
+### Diskon (item & invoice)
+- Diskon per item: `discountPercent` (0/5/10/15/20/25/50) di `ProductOptionModal` & `CartItemsSheet`. `calcUnitPrice = round((basePrice + extraPrice) * (1 - pct/100))`. Saat merge combo qty bertambah, diskon memakai nilai terbaru. Item menyimpan `subtotal` net.
+- Diskon invoice: `discountPercent` (0/5/10/15/20/25) di `PaymentScreen`. `subtotal` = jumlah net item; `discountAmount` = potongan invoice; `totalAmount` = `subtotal - discountAmount`. Struk/Excel menampilkan Diskons (item & invoice dijumlahkan di `getItemsDiscountAmount`).
+
+### Nomor Invoice & Reprint
+- Format `INV-YYYYMMDD-NNNN` dari `runTransaction` pada `counters/invoice-YYYYMMDD` di `processPayment`.
+- `utils/receiptHtml.js`: `buildReceiptHtml(transaction)` (html struk, font `Courier New`) + `getInvoiceNumber(transaction)` + `getItemsDiscountAmount(items)`. Dipakai `TransactionDetailScreen` (prints & share PDF), `HistoryScreen` (reprint per baris, tombol `print` hijau-accent), `ClosingScreen`.
+
+### ClosingScreen (Rekap Shift/Harian)
+- Tombol di `DashboardScreen` header → navigasi `Closing`. Data: transaksi hari ini (filter `'today'`), ringkasan total/tunai/QRIS/laba, breakdown **per kategori** (`item.category`) & **per kasir** (`transaction.cashier.email`). Tombol share/cetak PDF via `Print.printToFileAsync` + `Sharing.shareAsync`.
+
+### useAuthStore & Cart Persist
+- `useAuthStore`: `user`, `role`, `loading`, `refreshRole`, `logout` (persist ke AsyncStorage key `"kasir-auth"`).
+- `useCartStore` persist key **`"kasir-cart"`**: keranjang TIDAK dibersihkan saat ganti screen/app restart; hanya setelah `processPayment` sukses atau tombol `delete-sweep` di floating checkout bar. `getTotalPrice` tidak ada — hitung via `items.reduce(subtotal)`.
+
+### Offline Persistence (Web Only)
+- `firebase.js`: platform `web` pakai `initializeFirestore` + `persistentLocalCache({tabManager: persistentSingleTabManager})`; native tetap `getFirestore`. Jangan pakai `enableIndexedDbPersistence` (deprecated di SDK v12).
 
 ## Export Excel (src/utils/exportExcel.js)
 
 - `exportTransactionsToExcel(transactions, label)` — menghasilkan `.xlsx` dengan 2 sheet:
-  1. `Transaksi` — ringkasan per transaksi (No, ID, Tanggal, Metode, Jumlah Item, Total, Harga Modal, Laba Kotor, Uang Diterima, Kembalian).
-  2. `Detail Penjualan` — satu baris per item produk (No, ID, Tanggal, Nama Produk, Harga, Harga Modal, Qty, Subtotal, Laba).
+  1. `Transaksi` — ringkasan per transaksi (No, **Nomor Invoice**, Tanggal, Metode, Jumlah Item, Subtotal, **Diskon**, Total, Harga Modal, Laba Kotor, Uang Diterima, Kembalian).
+  2. `Detail Penjualan` — satu baris per item produk (No, Nomor Invoice, Nama Produk, Harga Satuan, Qty, Subtotal, Laba).
 - **Web**: `XLSX.writeFile` → unduhan langsung browser.
 - **Native**: `XLSX.write` (base64) → `new File(Paths.cache, filename)` (`create({overwrite:true, intermediates:true})` + `write(base64, {encoding:'base64'})`) → `Sharing.shareAsync(file.uri)`.
 - Nama file dibersihkan (`sanitizeFilename`) + timestamp. Impor API SDK 57 dari `expo-file-system`: `import { File, Paths } from 'expo-file-system'`.
@@ -152,5 +177,9 @@ PENTING: Dokumen produk wajib punya stok yang cukup — `createTransaction` meng
 
 - Alert: `showAlert(title, message)` — pakai `window.alert` di web, `Alert.alert` di native. Contoh di HomeScreen/HistoryScreen.
 - Konfirmasi hapus: `window.confirm` di web, `Alert.alert` dengan tombol destructive di native.
-- `FilterBar` memakai `<input type="date">` di web dan `TextInput` di native.
+- `FilterBar` memakai `<input type="date">` di web dan `TextInput` di native; chip **Rentang** memakai dua input `rangeStart`/`rangeEnd` (`YYYY-MM-DD`).
 - Hindari hardcode warna — gunakan `colors.*` agar konsisten semua platform.
+
+## Scripts (package.json)
+
+- Tidak ada lint/typecheck. Verifikasi via `npm run build:web` (`expo export --platform web`) — harus sukses sebelum menyerahkan kode.

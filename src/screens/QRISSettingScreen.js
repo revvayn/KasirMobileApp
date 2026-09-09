@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Image, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TextInput, Image, TouchableOpacity, Alert, ActivityIndicator, ScrollView, Platform } from 'react-native';
 import { getQRISUrl, saveQRISUrl } from '../services/paymentService';
 import colors from '../theme/colors';
 
@@ -7,6 +7,15 @@ export default function QRISSettingScreen({ navigation }) {
   const [qrisUrl, setQrisUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+
+  const showAlert = (title, message, onOk) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}: ${message}`);
+      if (onOk) onOk();
+    } else {
+      Alert.alert(title, message, onOk ? [{ text: 'OK', onPress: onOk }] : undefined);
+    }
+  };
 
   useEffect(() => {
     loadQRIS();
@@ -21,7 +30,7 @@ export default function QRISSettingScreen({ navigation }) {
 
   const handleSave = async () => {
     if (!qrisUrl || qrisUrl.trim() === '') {
-      Alert.alert('Peringatan', 'Harap masukkan link foto QRIS terlebih dahulu!');
+      showAlert('Peringatan', 'Harap masukkan link foto QRIS terlebih dahulu!');
       return;
     }
 
@@ -30,16 +39,11 @@ export default function QRISSettingScreen({ navigation }) {
     setLoading(false);
 
     if (success) {
-      Alert.alert('Berhasil', 'Link QRIS toko berhasil disimpan!', [
-        { 
-          text: 'OK', 
-          onPress: () => {
-            if (navigation && navigation.canGoBack()) navigation.goBack();
-          } 
-        }
-      ]);
+      showAlert('Berhasil', 'Link QRIS toko berhasil disimpan!', () => {
+        if (navigation && navigation.canGoBack()) navigation.goBack();
+      });
     } else {
-      Alert.alert('Gagal', 'Terjadi kesalahan saat menyimpan QRIS ke database.');
+      showAlert('Gagal', 'Terjadi kesalahan saat menyimpan QRIS ke database.');
     }
   };
 
@@ -71,7 +75,7 @@ export default function QRISSettingScreen({ navigation }) {
           <Image
             source={{ uri: qrisUrl }}
             className="w-[220px] h-[220px] rounded-card border border-hairline bg-surface"
-            onError={() => Alert.alert('Format Salah', 'Link gambar tidak valid atau tidak bisa dimuat.')}
+            onError={() => showAlert('Format Salah', 'Link gambar tidak valid atau tidak bisa dimuat.')}
           />
         </View>
       ) : (

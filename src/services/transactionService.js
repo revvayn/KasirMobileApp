@@ -6,86 +6,11 @@ import {
   orderBy, 
   doc, 
   deleteDoc, 
-  writeBatch,
-  increment,
-  serverTimestamp
+  writeBatch 
 } from "firebase/firestore";
-import { normalizeMoney } from "../utils/currency";
 
 // Re-export helper Rupiah agar konsisten dipakai satu sumber
 export { formatRupiah, formatRupiahInput, parseRupiahInput } from "../utils/currency";
-
-/**
- * Menyimpan transaksi baru sekaligus mengurangi stok produk secara otomatis.
- * Menggunakan writeBatch agar operasi pembuatan riwayat dan pemotongan stok berjalan atomis.
- */
-export const createTransaction = async (transactionData) => {
-  try {
-    const batch = writeBatch(db);
-
-    // 1. Buat referensi dokumen transaksi baru di koleksi 'transactions'
-    const transRef = doc(collection(db, "transactions"));
-
-    // Normalisasi nilai nominal: terima number maupun string berformat
-    // ("Rp 100.000", "100.000") lalu simpan sebagai angka baku.
-    const normalizedTotal = normalizeMoney(transactionData.totalAmount);
-    const normalizedPayment = normalizeMoney(
-      transactionData.paymentAmount ?? transactionData.cashAmount ?? transactionData.cashReceived,
-      normalizedTotal
-    );
-    const normalizedChange = normalizeMoney(
-      transactionData.change,
-      normalizedPayment > normalizedTotal ? normalizedPayment - normalizedTotal : 0
-    );
-
-    const payload = {
-      ...transactionData,
-      totalAmount: normalizedTotal,
-      paymentAmount: normalizedPayment,
-      cashReceived: normalizedPayment,
-      change: normalizedChange,
-      createdAt: serverTimestamp(),
-      formattedTime: new Date().toLocaleString('id-ID', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }),
-    };
-
-    batch.set(transRef, payload);
-
-    // 2. Potong stok setiap produk yang ada di dalam keranjang
-    const items = Array.isArray(transactionData.items) ? transactionData.items.flat() : [];
-
-    items.forEach((item) => {
-      // Mengambil ID Dokumen produk di Firestore
-      const productId = item.firestoreDocId || item.id || item.docId;
-      const qtyPurchased = Number(item.qty || item.quantity || 1);
-
-      if (productId) {
-        const productRef = doc(db, "products", String(productId).trim());
-        
-        // Gunakan increment(-qtyPurchased) untuk mengurangi stok
-        batch.update(productRef, {
-          stock: increment(-qtyPurchased)
-        });
-      } else {
-        console.warn("⚠️ Produk tidak memiliki ID Firestore yang valid untuk potong stok:", item);
-      }
-    });
-
-    // 3. Eksekusi batch sekaligus
-    await batch.commit();
-    console.log("✅ Transaksi berhasil dibuat dan stok produk berhasil dipotong!");
-    return { success: true, id: transRef.id };
-
-  } catch (error) {
-    console.error("❌ [createTransaction] Gagal memproses transaksi & potong stok:", error);
-    return { success: false, error };
-  }
-};
 
 // Mengambil seluruh riwayat transaksi
 export const getTransactions = async () => {
@@ -124,14 +49,41 @@ export const getTransactions = async () => {
 };
 
 // Helper fungsi untuk memfilter array transaksi berdasarkan jenis filter atau tanggal
-export const filterTransactionsByPeriod = (transactions, filterType, customDate = null) => {
+export const filterTransactionsByPeriod = (
+  transactions,
+  filterType,
+  customDate = null,
+  rangeStart = null,
+  rangeEnd = null
+) => {
   const now = new Date();
+
+  // Konversi "YYYY-MM-DD" ke Date lokal.
+  const toDate = (value) => {
+    if (!value) return null;
+    if (typeof value === 'string' && value.includes('-')) {
+      const [year, month, day] = value.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    }
+    return new Date(value);
+  };
 
   return transactions.filter((trans) => {
     const transDate = trans.createdAtDate;
     if (!transDate) return true;
 
-    if (filterType === 'custom' && customDate) {
+    if (filterType === 'range') {
+      const start = toDate(rangeStart);
+      const end = toDate(rangeEnd);
+      const dayStart = new Date(transDate.getFullYear(), transDate.getMonth(), transDate.getDate());
+      if (start && end) {
+        const endInclusive = new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1);
+        return dayStart >= start && dayStart < endInclusive;
+      }
+      if (start) return dayStart >= start;
+      if (end) return dayStart < new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1);
+      return true;
+    } else if (filterType === 'custom' && customDate) {
       let target;
       if (typeof customDate === 'string' && customDate.includes('-')) {
         const [year, month, day] = customDate.split('-').map(Number);
@@ -189,16 +141,28 @@ export const getTransactionProfit = (transaction) => {
 };
 
 // Mengolah statistik untuk Dashboard
-export const getDashboardStats = async (filterType = 'all', customDate = null) => {
+export const getDashboardStats = async (
+  filterType = 'all',
+  customDate = null,
+  rangeStart = null,
+  rangeEnd = null
+) => {
   try {
     const allTransactions = await getTransactions();
-    const filteredTransactions = filterTransactionsByPeriod(allTransactions, filterType, customDate);
+    const filteredTransactions = filterTransactionsByPeriod(
+      allTransactions,
+      filterType,
+      customDate,
+      rangeStart,
+      rangeEnd
+    );
 
     let totalRevenue = 0;
     let totalCost = 0;
     let totalProfit = 0;
     let totalItemsSold = 0;
     const productSalesMap = {};
+    const categoryMap = {};
 
     filteredTransactions.forEach((trans) => {
       totalRevenue += Number(trans.totalAmount) || 0;
@@ -214,6 +178,11 @@ export const getDashboardStats = async (filterType = 'all', customDate = null) =
           totalCost += unitCost * qty;
           totalProfit += (Number(item.subtotal || (item.price * qty)) || 0) - unitCost * qty;
           productSalesMap[name] = (productSalesMap[name] || 0) + qty;
+
+          const cat = item.category || 'Tanpa Kategori';
+          if (!categoryMap[cat]) categoryMap[cat] = { qty: 0, revenue: 0 };
+          categoryMap[cat].qty += qty;
+          categoryMap[cat].revenue += Number(item.subtotal || (item.price * qty)) || 0;
         });
       }
     });
@@ -222,6 +191,10 @@ export const getDashboardStats = async (filterType = 'all', customDate = null) =
       .map((name) => ({ name, qty: productSalesMap[name] }))
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 5);
+
+    const categoryBreakdown = Object.keys(categoryMap)
+      .map((cat) => ({ category: cat, ...categoryMap[cat] }))
+      .sort((a, b) => b.revenue - a.revenue);
 
     return {
       totalTransactions: filteredTransactions.length,
@@ -232,6 +205,7 @@ export const getDashboardStats = async (filterType = 'all', customDate = null) =
       totalItemsSold,
       topProducts,
       recentTransactions: filteredTransactions.slice(0, 5),
+      categoryBreakdown,
     };
   } catch (error) {
     console.error("Gagal mengambil statistik dashboard: ", error);
@@ -244,6 +218,7 @@ export const getDashboardStats = async (filterType = 'all', customDate = null) =
       totalItemsSold: 0,
       topProducts: [],
       recentTransactions: [],
+      categoryBreakdown: [],
     };
   }
 };

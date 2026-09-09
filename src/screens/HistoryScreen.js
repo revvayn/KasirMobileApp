@@ -9,6 +9,8 @@ import {
   Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   getTransactions,
@@ -20,6 +22,7 @@ import {
 import FilterBar from '../components/FilterBar';
 import colors from '../theme/colors';
 import { exportTransactionsToExcel, formatRupiah } from '../utils/exportExcel';
+import { buildReceiptHtml, getInvoiceNumber } from '../utils/receiptHtml';
 
 export default function HistoryScreen({ navigation }) {
   const [allTransactions, setAllTransactions] = useState([]);
@@ -27,10 +30,15 @@ export default function HistoryScreen({ navigation }) {
   const [displayedTransactions, setDisplayedTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [reprintingId, setReprintingId] = useState(null);
 
   // State Filter & Pagination
   const [filter, setFilter] = useState('all');
   const [customDate, setCustomDate] = useState(new Date().toISOString().split('T')[0]);
+  const [rangeStart, setRangeStart] = useState(
+    () => new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  );
+  const [rangeEnd, setRangeEnd] = useState(() => new Date().toISOString().split('T')[0]);
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
@@ -49,7 +57,7 @@ export default function HistoryScreen({ navigation }) {
 
   useEffect(() => {
     applyFilter();
-  }, [filter, customDate, allTransactions]);
+  }, [filter, customDate, allTransactions, rangeStart, rangeEnd]);
 
   useEffect(() => {
     paginateData();
@@ -69,7 +77,7 @@ export default function HistoryScreen({ navigation }) {
   };
 
   const applyFilter = () => {
-    const filtered = filterTransactionsByPeriod(allTransactions, filter, customDate);
+    const filtered = filterTransactionsByPeriod(allTransactions, filter, customDate, rangeStart, rangeEnd);
     setFilteredTransactions(filtered || []);
     setPage(1); // Reset halaman ke 1 saat filter berubah
   };
@@ -122,6 +130,29 @@ export default function HistoryScreen({ navigation }) {
         items: rawItems,
       },
     });
+  };
+
+  // Reprint struk langsung dari daftar riwayat
+  const handleReprint = async (item) => {
+    setReprintingId(getDocId(item));
+    try {
+      const html = buildReceiptHtml(item);
+      if (Platform.OS === 'web') {
+        await Print.printAsync({ html });
+      } else {
+        const pdf = await Print.printToFileAsync({ html });
+        if (pdf && pdf.uri && (await Sharing.isAvailableAsync())) {
+          await Sharing.shareAsync(pdf.uri, { mimeType: 'application/pdf', dialogTitle: 'Cetak / Bagikan Struk' });
+        } else {
+          showAlert('Cetak Struk', 'Gunakan tombol Cetak dari halaman detail transaksi.');
+        }
+      }
+    } catch (error) {
+      console.error('Gagal cetak ulang:', error);
+      showAlert('Gagal Cetak', 'Terjadi kesalahan saat mencetak struk.');
+    } finally {
+      setReprintingId(null);
+    }
   };
 
   // Hapus Single Item Lintas Platform
@@ -288,6 +319,10 @@ export default function HistoryScreen({ navigation }) {
             setFilter={setFilter}
             customDate={customDate}
             setCustomDate={setCustomDate}
+            rangeStart={rangeStart}
+            setRangeStart={setRangeStart}
+            rangeEnd={rangeEnd}
+            setRangeEnd={setRangeEnd}
           />
         </View>
 
@@ -365,7 +400,7 @@ export default function HistoryScreen({ navigation }) {
                       <MaterialIcons name={isQRIS ? 'qr-code' : 'payments'} size={18} color={isQRIS ? colors.accent : colors.success} />
                     </View>
                     <View>
-                      <Text className="font-bold text-[13px] text-ink">#{itemId ? String(itemId).substring(0, 8) : 'N/A'}</Text>
+                      <Text className="font-bold text-[13px] text-ink">{getInvoiceNumber(item)}</Text>
                       <Text className="text-[11px] text-ink-muted mt-0.5">{item.formattedTime || 'Baru Saja'}</Text>
                     </View>
                   </View>
@@ -411,6 +446,17 @@ export default function HistoryScreen({ navigation }) {
                   >
                     <MaterialIcons name="visibility" size={15} color="#fff" />
                     <Text className="text-white font-bold text-[12px] ml-1.5">Lihat Detail</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className="bg-accent-soft py-2.5 px-3.5 rounded-xl items-center border border-accent"
+                    onPress={() => handleReprint(item)}
+                    activeOpacity={0.85}
+                  >
+                    {reprintingId === getDocId(item) ? (
+                      <ActivityIndicator size="small" color={colors.accent} />
+                    ) : (
+                      <MaterialIcons name="print" size={17} color={colors.accent} />
+                    )}
                   </TouchableOpacity>
                   <TouchableOpacity
                     className="bg-danger-soft py-2.5 px-4 rounded-xl items-center border border-danger"

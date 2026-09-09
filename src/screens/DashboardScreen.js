@@ -4,6 +4,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { getDashboardStats } from '../services/transactionService';
 import FilterBar from '../components/FilterBar';
 import colors from '../theme/colors';
+import { getInvoiceNumber } from '../utils/receiptHtml';
 
 export default function DashboardScreen({ navigation }) {
   const [stats, setStats] = useState({
@@ -15,28 +16,33 @@ export default function DashboardScreen({ navigation }) {
     totalItemsSold: 0,
     topProducts: [],
     recentTransactions: [],
+    categoryBreakdown: [],
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  
+
   // State Filter
   const [filter, setFilter] = useState('all');
   const [customDate, setCustomDate] = useState(new Date().toISOString().split('T')[0]);
+  const [rangeStart, setRangeStart] = useState(
+    () => new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  );
+  const [rangeEnd, setRangeEnd] = useState(() => new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     loadDashboard();
-  }, [filter, customDate]);
+  }, [filter, customDate, rangeStart, rangeEnd]);
 
   const loadDashboard = async () => {
     setLoading(true);
-    const data = await getDashboardStats(filter, customDate);
+    const data = await getDashboardStats(filter, customDate, rangeStart, rangeEnd);
     setStats(data);
     setLoading(false);
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    const data = await getDashboardStats(filter, customDate);
+    const data = await getDashboardStats(filter, customDate, rangeStart, rangeEnd);
     setStats(data);
     setRefreshing(false);
   };
@@ -110,8 +116,17 @@ export default function DashboardScreen({ navigation }) {
           <Text className="text-[13px] font-medium text-ink-muted">Laporan Penjualan</Text>
           <Text className="text-2xl font-extrabold text-ink -tracking-tight">Dashboard</Text>
         </View>
-        <View className="w-10 h-10 rounded-2xl bg-primary items-center justify-center">
-          <MaterialIcons name="monitoring" size={20} color="#fff" />
+        <View className="flex-row gap-2">
+          <TouchableOpacity
+            className="w-10 h-10 rounded-2xl bg-accent-soft items-center justify-center"
+            onPress={() => navigation.navigate('Closing')}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons name="fact-check" size={19} color={colors.accent} />
+          </TouchableOpacity>
+          <View className="w-10 h-10 rounded-2xl bg-primary items-center justify-center">
+            <MaterialIcons name="monitoring" size={20} color="#fff" />
+          </View>
         </View>
       </View>
 
@@ -121,6 +136,10 @@ export default function DashboardScreen({ navigation }) {
         setFilter={setFilter}
         customDate={customDate}
         setCustomDate={setCustomDate}
+        rangeStart={rangeStart}
+        setRangeStart={setRangeStart}
+        rangeEnd={rangeEnd}
+        setRangeEnd={setRangeEnd}
       />
 
       {loading ? (
@@ -233,6 +252,48 @@ export default function DashboardScreen({ navigation }) {
             )}
           </View>
 
+          {/* Pendapatan per Kategori */}
+          <View className="bg-surface p-4 rounded-[22px] mb-4 shadow-sm border border-hairline">
+            <View className="flex-row items-center mb-3">
+              <View className="w-8 h-8 rounded-xl bg-accent-soft items-center justify-center mr-2.5">
+                <MaterialIcons name="category" size={18} color={colors.accent} />
+              </View>
+              <Text className="text-[16px] font-bold text-ink">Pendapatan per Kategori</Text>
+            </View>
+
+            {stats.categoryBreakdown.length === 0 ? (
+              <Text className="text-xs font-medium text-ink-muted italic my-3">
+                Tidak ada penjualan di periode ini.
+              </Text>
+            ) : (
+              <View>
+                {stats.categoryBreakdown.map((k, index) => {
+                  const maxRevenue = stats.categoryBreakdown[0].revenue || 1;
+                  const pct = (k.revenue / maxRevenue) * 100;
+                  return (
+                    <View key={k.category} className={`py-2 ${index !== stats.categoryBreakdown.length - 1 ? 'border-b border-hairline' : ''}`}>
+                      <View className="flex-row items-center justify-between mb-1">
+                        <Text className="flex-1 text-sm font-semibold text-ink" numberOfLines={1}>
+                          {k.category}
+                        </Text>
+                        <Text className="text-xs font-bold text-ink-muted mr-2">{k.qty} pcs</Text>
+                        <Text className="font-extrabold text-ink text-[13px]">
+                          {formatRupiah(k.revenue)}
+                        </Text>
+                      </View>
+                      <View className="ml-1 h-2 rounded-full bg-bg overflow-hidden">
+                        <View
+                          className="h-full rounded-full"
+                          style={{ width: `${Math.max(pct, 5)}%`, backgroundColor: colors.success }}
+                        />
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+
           {/* Transaksi Terbaru */}
           <View className="bg-surface p-4 rounded-[22px] mb-4 shadow-sm border border-hairline">
             <View className="flex-row justify-between items-center mb-2">
@@ -271,7 +332,7 @@ export default function DashboardScreen({ navigation }) {
                       </Text>
                     </View>
                     <View>
-                      <Text className="font-bold text-[13px] text-ink">#{item.id.substring(0, 8)}</Text>
+                      <Text className="font-bold text-[13px] text-ink">{getInvoiceNumber(item)}</Text>
                       <Text className="text-[11px] font-medium text-ink-muted mt-0.5">{item.formattedTime}</Text>
                     </View>
                   </View>

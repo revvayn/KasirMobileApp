@@ -36,6 +36,7 @@ export default function ProductManagerScreen() {
   const [price, setPrice] = useState('');
   const [cost, setCost] = useState('');
   const [stock, setStock] = useState('');
+  const [minStock, setMinStock] = useState('5');
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -69,12 +70,15 @@ export default function ProductManagerScreen() {
     setPrice('');
     setCost('');
     setStock('');
+    setMinStock('5');
     setCategory('');
     setDescription('');
-    setImageUrl('');
+setImageUrl('');
     setVariants([]);
     setModifierGroups([]);
-    setModalVisible(true);
+    setMinStock('5');
+    setModalVisible(false);
+    setEditingId(null);
   };
 
   const openEditModal = (item) => {
@@ -83,6 +87,7 @@ export default function ProductManagerScreen() {
     setPrice(formatRupiahInput(item.price));
     setCost(formatRupiahInput(item.cost));
     setStock(item.stock !== undefined && item.stock !== null ? String(item.stock) : '0');
+    setMinStock(item.minStock !== undefined && item.minStock !== null ? String(item.minStock) : '5');
     setCategory(item.category || '');
     setDescription(item.description || '');
     setImageUrl(item.imageUrl || '');
@@ -155,7 +160,8 @@ export default function ProductManagerScreen() {
           description.trim(),
           cost !== '' ? costValue : null,
           variantsData,
-          modifiersData
+          modifiersData,
+          Number(minStock) || 5
         );
       } else {
         await addProduct(
@@ -167,7 +173,8 @@ export default function ProductManagerScreen() {
           description.trim(),
           cost !== '' ? costValue : null,
           variantsData,
-          modifiersData
+          modifiersData,
+          Number(minStock) || 5
         );
       }
 
@@ -260,7 +267,9 @@ export default function ProductManagerScreen() {
     'border border-hairline rounded-2xl px-4 py-3.5 bg-bg text-ink text-sm mb-3';
   const labelClass = 'text-xs font-bold text-ink-muted mb-1.5 ml-1';
 
-  const lowStockCount = products.filter((p) => Number(p.stock) <= 5).length;
+  const lowStockCount = products.filter(
+    (p) => Number(p.stock) <= (Number(p.minStock) || 5)
+  ).length;
   const totalStock = products.reduce((sum, p) => sum + (Number(p.stock) || 0), 0);
 
   return (
@@ -355,7 +364,7 @@ export default function ProductManagerScreen() {
           contentContainerStyle={{ paddingBottom: 32 }}
           renderItem={({ item }) => {
             const outOfStock = Number(item.stock) <= 0;
-            const lowStock = !outOfStock && Number(item.stock) <= 5;
+            const lowStock = !outOfStock && Number(item.stock) <= (Number(item.minStock) || 5);
             return (
               <View className="bg-surface rounded-[18px] mb-2.5 flex-row items-center border border-hairline overflow-hidden">
                 <Image
@@ -532,6 +541,16 @@ export default function ProductManagerScreen() {
                 />
               </View>
             </View>
+
+            <Text className={labelClass}>Stok Minimum (peringatan stok menipis)</Text>
+            <TextInput
+              className={inputClass}
+              placeholder="5"
+              placeholderTextColor={colors['ink-muted']}
+              keyboardType="numeric"
+              value={minStock}
+              onChangeText={setMinStock}
+            />
 
             <Text className={labelClass}>Harga Modal (Rp)</Text>
             <TextInput

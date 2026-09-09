@@ -13,7 +13,10 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { getProducts } from '../services/productService';
 import { useCartStore } from '../store/useCartStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { signOut } from '../services/authService';
 import ProductOptionModal from '../components/ProductOptionModal';
+import CartItemsSheet from '../components/CartItemsSheet';
 import { getItemOptionsLabel } from '../utils/cartLabel';
 import colors from '../theme/colors';
 
@@ -21,16 +24,22 @@ export default function HomeScreen({ navigation }) {
   const [products, setProducts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [cartSheetProductId, setCartSheetProductId] = useState(null);
+  const [cartSheetProductName, setCartSheetProductName] = useState('');
+
+  const role = useAuthStore((s) => s.role);
 
   const cart = useCartStore((s) => s.cart);
   const addToCart = useCartStore((s) => s.addToCart);
+  const increaseQty = useCartStore((s) => s.increaseQty);
   const decreaseQty = useCartStore((s) => s.decreaseQty);
+  const removeFromCart = useCartStore((s) => s.removeFromCart);
+  const setItemDiscount = useCartStore((s) => s.setItemDiscount);
   const clearCart = useCartStore((s) => s.clearCart);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       fetchProducts();
-      clearCart(); // Reset keranjang saat kembali ke halaman utama
     });
     return unsubscribe;
   }, [navigation]);
@@ -93,9 +102,42 @@ export default function HomeScreen({ navigation }) {
       variant: cartItem.variant,
       modifiers: cartItem.modifiers,
       customNote: cartItem.customNote,
+      discountPercent: cartItem.discountPercent || 0,
     });
     if (!result.ok && result.reason === 'STOCK_LIMIT') showStockLimitAlert();
   };
+
+  // Buka sheet daftar kombinasi produk ini di keranjang
+  const openCartSheet = (product) => {
+    setCartSheetProductId(getDocId(product));
+    setCartSheetProductName(product.name || product.nama || 'Produk');
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      useAuthStore.getState().logout();
+    } catch (error) {
+      showAlert('Gagal', 'Tidak dapat keluar. Coba lagi.');
+    }
+  };
+
+  const confirmClearCart = () => {
+    const action = () => clearCart();
+    if (Platform.OS === 'web') {
+      if (window.confirm('Kosongkan seluruh isi keranjang?')) action();
+      return;
+    }
+    Alert.alert('Kosongkan Keranjang', 'Yakin ingin mengosongkan seluruh isi keranjang?', [
+      { text: 'Batal', style: 'cancel' },
+      { text: 'Kosongkan', style: 'destructive', onPress: action },
+    ]);
+  };
+
+  const cartSheetItems =
+    cartSheetProductId != null
+      ? cart.filter((c) => getDocId(c) === cartSheetProductId)
+      : [];
 
   const calculateTotal = () =>
     cart.reduce((sum, item) => sum + (Number(item.subtotal) || 0), 0);
@@ -118,12 +160,18 @@ export default function HomeScreen({ navigation }) {
     return name.includes(q);
   });
 
+  const isAdmin = role === 'admin';
+
   const navItems = [
-    { key: 'Dashboard', label: 'Dashboard', icon: 'bar-chart' },
-    { key: 'ProductManager', label: 'Produk', icon: 'inventory-2' },
-    { key: 'History', label: 'Riwayat', icon: 'history' },
-    { key: 'QRISSetting', label: 'QRIS', icon: 'qr-code' },
-  ];
+    { key: 'Dashboard', label: 'Dashboard', icon: 'bar-chart', adminOnly: false },
+    { key: 'ProductManager', label: 'Produk', icon: 'inventory-2', adminOnly: true },
+    { key: 'History', label: 'Riwayat', icon: 'history', adminOnly: false },
+    { key: 'QRISSetting', label: 'QRIS', icon: 'qr-code', adminOnly: false },
+    { key: 'Closing', label: 'Rekap', icon: 'fact-check', adminOnly: false },
+    { key: 'UserManager', label: 'Akun', icon: 'people', adminOnly: true },
+  ]
+    .filter((nav) => !nav.adminOnly || isAdmin)
+    .map(({ adminOnly, ...rest }) => rest);
 
   return (
     <View className="flex-1 bg-bg">
@@ -135,10 +183,17 @@ export default function HomeScreen({ navigation }) {
             <Text className="text-2xl font-extrabold text-ink -tracking-tight">Katalog Produk</Text>
           </View>
           {totalItemsInCart > 0 && (
-            <View className="bg-accent w-10 h-10 rounded-full items-center justify-center">
+            <View className="bg-accent w-10 h-10 rounded-full items-center justify-center mr-2">
               <Text className="text-white font-extrabold text-sm">{totalItemsInCart}</Text>
             </View>
           )}
+          <TouchableOpacity
+            className="w-10 h-10 rounded-full bg-bg items-center justify-center"
+            onPress={handleLogout}
+            activeOpacity={0.85}
+          >
+            <MaterialIcons name="logout" size={19} color={colors['ink-muted']} />
+          </TouchableOpacity>
         </View>
 
         {/* Search Bar */}
@@ -192,6 +247,8 @@ export default function HomeScreen({ navigation }) {
           const cartQty = inCartItems.reduce((sum, c) => sum + c.qty, 0);
           const firstCartItem = inCartItems[0];
           const outOfStock = Number(item.stock || 0) <= 0;
+          const minStock = Number(item.minStock ?? 5);
+          const lowStock = !outOfStock && Number(item.stock) <= minStock;
 
           return (
             <TouchableOpacity
@@ -216,8 +273,14 @@ export default function HomeScreen({ navigation }) {
                   </View>
                 )}
                 {!outOfStock && (
-                  <View className="absolute top-2 right-2 bg-success-soft px-2 py-0.5 rounded-full">
-                    <Text className="text-[10px] font-bold text-success">Stok {item.stock}</Text>
+                  <View
+                    className={`absolute top-2 right-2 px-2 py-0.5 rounded-full ${
+                      lowStock ? 'bg-danger-soft' : 'bg-success-soft'
+                    }`}
+                  >
+                    <Text className={`text-[10px] font-bold ${lowStock ? 'text-danger' : 'text-success'}`}>
+                      {lowStock ? `Menipis (${item.stock})` : `Stok ${item.stock}`}
+                    </Text>
                   </View>
                 )}
               </View>
@@ -230,30 +293,51 @@ export default function HomeScreen({ navigation }) {
                   Rp {Number(item.price || 0).toLocaleString('id-ID')}
                 </Text>
 
-                {cartQty > 0 && firstCartItem && (
-                  <>
-                    <Text className="text-[11px] font-medium text-ink-muted mt-1" numberOfLines={1}>
-                      {getItemOptionsLabel(firstCartItem)}
-                    </Text>
-                    <View className="flex-row items-center justify-between mt-2 bg-bg rounded-xl px-1.5 py-1">
-                      <TouchableOpacity
-                        className="w-7 h-7 rounded-lg bg-danger items-center justify-center"
-                        onPress={() => decreaseQty(firstCartItem.cartId)}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      >
-                        <MaterialIcons name="remove" size={16} color="#fff" />
-                      </TouchableOpacity>
-                      <Text className="font-extrabold text-ink text-sm">{cartQty}</Text>
-                      <TouchableOpacity
-                        className="w-7 h-7 rounded-lg bg-primary items-center justify-center"
-                        onPress={() => handlePlus(firstCartItem)}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      >
-                        <MaterialIcons name="add" size={16} color="#fff" />
-                      </TouchableOpacity>
+                {cartQty > 0 &&
+                  (inCartItems.length === 1 && firstCartItem ? (
+                    <>
+                      <Text className="text-[11px] font-medium text-ink-muted mt-1" numberOfLines={1}>
+                        {getItemOptionsLabel(firstCartItem)}
+                        {Number(firstCartItem.discountPercent || 0) > 0
+                          ? ` · diskon ${firstCartItem.discountPercent}%`
+                          : ''}
+                      </Text>
+                      <View className="flex-row items-center justify-between mt-2 bg-bg rounded-xl px-1.5 py-1">
+                        <TouchableOpacity
+                          className="w-7 h-7 rounded-lg bg-danger items-center justify-center"
+                          onPress={() => decreaseQty(firstCartItem.cartId)}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          <MaterialIcons name="remove" size={16} color="#fff" />
+                        </TouchableOpacity>
+                        <Text className="font-extrabold text-ink text-sm">{cartQty}</Text>
+                        <TouchableOpacity
+                          className="w-7 h-7 rounded-lg bg-primary items-center justify-center"
+                          onPress={() => handlePlus(firstCartItem)}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          <MaterialIcons name="add" size={16} color="#fff" />
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  ) : (
+                    <View className="mt-2 flex-row items-center justify-between bg-bg rounded-xl px-2.5 py-1.5">
+                      <Text className="text-[11px] font-semibold text-ink flex-1" numberOfLines={1}>
+                        {cartQty} item · {getItemOptionsLabel(firstCartItem)}
+                        {inCartItems.length > 1 ? ` +${inCartItems.length - 1} varian` : ''}
+                      </Text>
+                      <View className="flex-row items-center">
+                        <Text className="font-extrabold text-accent text-[13px] mr-2">{cartQty}×</Text>
+                        <TouchableOpacity
+                          className="w-7 h-7 rounded-lg bg-accent items-center justify-center"
+                          onPress={() => openCartSheet(item)}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          <MaterialIcons name="tune" size={16} color="#fff" />
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  </>
-                )}
+                  ))}
               </View>
             </TouchableOpacity>
           );
@@ -289,9 +373,18 @@ export default function HomeScreen({ navigation }) {
                 </Text>
               </View>
             </View>
-            <View className="flex-row items-center">
-              <Text className="text-white font-bold text-[13px] mr-1">Bayar</Text>
-              <MaterialIcons name="arrow-forward" size={18} color="#fff" />
+            <View className="flex-row items-center gap-2.5">
+              <TouchableOpacity
+                className="w-9 h-9 rounded-xl bg-white/15 items-center justify-center"
+                onPress={confirmClearCart}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <MaterialIcons name="delete-sweep" size={17} color="#fff" />
+              </TouchableOpacity>
+              <View className="flex-row items-center">
+                <Text className="text-white font-bold text-[13px] mr-1">Bayar</Text>
+                <MaterialIcons name="arrow-forward" size={18} color="#fff" />
+              </View>
             </View>
           </TouchableOpacity>
         </View>
@@ -303,6 +396,21 @@ export default function HomeScreen({ navigation }) {
         product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
         onConfirm={handleConfirmOptions}
+      />
+
+      {/* Sheet kombinasi item per produk */}
+      <CartItemsSheet
+        visible={cartSheetProductId != null}
+        productName={cartSheetProductName}
+        items={cartSheetItems}
+        onClose={() => setCartSheetProductId(null)}
+        onIncrease={(cartId) => {
+          const res = increaseQty(cartId);
+          if (!res.ok && res.reason === 'STOCK_LIMIT') showStockLimitAlert();
+        }}
+        onDecrease={decreaseQty}
+        onRemove={removeFromCart}
+        onSetDiscount={setItemDiscount}
       />
     </View>
   );

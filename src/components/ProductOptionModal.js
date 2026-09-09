@@ -12,6 +12,9 @@ export default function ProductOptionModal({ visible, product, onClose, onConfir
   const [selectedModifiers, setSelectedModifiers] = useState({});
   const [customNote, setCustomNote] = useState('');
   const [quantity, setQuantity] = useState(1);
+  const [discountPercent, setDiscountPercent] = useState(0);
+
+  const DISCOUNT_OPTIONS = [0, 5, 10, 15, 20, 25, 50];
 
   const variants = useMemo(() => product?.variants || [], [product]);
   const modifiers = useMemo(() => product?.modifiers || [], [product]);
@@ -28,6 +31,7 @@ export default function ProductOptionModal({ visible, product, onClose, onConfir
       setSelectedModifiers(defaultMods);
       setCustomNote('');
       setQuantity(1);
+      setDiscountPercent(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, product]);
@@ -42,7 +46,8 @@ export default function ProductOptionModal({ visible, product, onClose, onConfir
   const selectedVariant =
     variants.find((v) => v.id === selectedVariantId) || (variants.length === 0 ? null : variants[0]);
   const extraPrice = Number(selectedVariant?.extraPrice) || 0;
-  const unitPrice = basePrice + extraPrice;
+  const rawUnitPrice = basePrice + extraPrice;
+  const unitPrice = Math.round(rawUnitPrice * (1 - discountPercent / 100));
   const totalPrice = unitPrice * quantity;
 
   const selectedModifiersList = modifiers
@@ -55,6 +60,7 @@ export default function ProductOptionModal({ visible, product, onClose, onConfir
       modifiers: selectedModifiersList,
       customNote,
       quantity,
+      discountPercent,
     });
   };
 
@@ -76,9 +82,10 @@ export default function ProductOptionModal({ visible, product, onClose, onConfir
               </Text>
               <Text className="text-[13px] font-semibold text-accent mt-0.5">
                 {formatRupiah(unitPrice)}
-                {extraPrice > 0 && (
+                {(extraPrice > 0 || discountPercent > 0) && (
                   <Text className="text-[11px] font-medium text-ink-muted">
-                    {' '}({formatRupiah(basePrice)} + {formatRupiah(extraPrice)})
+                    {extraPrice > 0 ? ` (${formatRupiah(basePrice)} + ${formatRupiah(extraPrice)})` : ''}
+                    {discountPercent > 0 ? ` diskon ${discountPercent}%` : ''}
                   </Text>
                 )}
               </Text>
@@ -174,6 +181,32 @@ export default function ProductOptionModal({ visible, product, onClose, onConfir
                 })}
               </View>
             )}
+
+            {/* Diskon */}
+            <View className="mb-5">
+              <Text className="text-xs font-bold text-ink-muted mb-2">
+                Diskon ({discountPercent > 0 ? `-${discountPercent}%` : '0%'})
+              </Text>
+              <View className="flex-row flex-wrap">
+                {DISCOUNT_OPTIONS.map((pct) => {
+                  const selected = discountPercent === pct;
+                  return (
+                    <TouchableOpacity
+                      key={pct}
+                      className={`px-4 py-2 rounded-2xl border mr-2 mb-2 ${
+                        selected ? 'bg-primary border-primary' : 'bg-surface border-hairline'
+                      }`}
+                      onPress={() => setDiscountPercent(pct)}
+                      activeOpacity={0.8}
+                    >
+                      <Text className={`text-[13px] font-bold ${selected ? 'text-white' : 'text-ink'}`}>
+                        {pct}%
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
 
             {/* Catatan */}
             <View className="mb-4">

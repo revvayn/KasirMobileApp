@@ -16,10 +16,12 @@ const buildWorkbook = (transactions) => {
   const transRows = [
     [
       'No',
-      'ID Transaksi',
+      'Nomor Invoice',
       'Tanggal / Waktu',
       'Metode Pembayaran',
       'Jumlah Item',
+      'Subtotal',
+      'Diskon',
       'Total',
       'Harga Modal',
       'Laba Kotor',
@@ -29,7 +31,7 @@ const buildWorkbook = (transactions) => {
   ];
 
   const detailRows = [
-    ['No', 'ID Transaksi', 'Tanggal / Waktu', 'Nama Produk', 'Harga', 'Harga Modal', 'Qty', 'Subtotal', 'Laba'],
+    ['No', 'Nomor Invoice', 'Nama Produk', 'Harga Satuan', 'Qty', 'Subtotal', 'Laba'],
   ];
 
   transactions.forEach((tx, index) => {
@@ -39,22 +41,34 @@ const buildWorkbook = (transactions) => {
       0
     );
     const txId = tx.firestoreDocId || tx.id || tx.docId || '';
+    const invoice = tx.invoiceNumber || (txId ? `#${String(txId).substring(0, 8)}` : 'N/A');
 
     let transCost = 0;
     let transProfit = 0;
+    let subtotal = 0;
+    let discount = Number(tx.discountAmount || 0) || 0;
     rawItems.forEach((it) => {
       const qty = Number(it.qty || it.quantity) || 1;
       const unitCost = Number(it.cost || it.hargaModal || 0) || 0;
+      const itSubtotal = Number(it.subtotal || (it.price * qty)) || 0;
+      subtotal += itSubtotal;
       transCost += unitCost * qty;
-      transProfit += (Number(it.subtotal || (it.price * qty)) || 0) - unitCost * qty;
+      transProfit += itSubtotal - unitCost * qty;
+      const discPct = Number(it.discountPercent || 0);
+      if (discPct > 0) {
+        const rawUnit = Number(it.price || 0) + Number(it.variant?.extraPrice || 0);
+        discount += (rawUnit - Math.round(rawUnit * (1 - discPct / 100))) * qty;
+      }
     });
 
     transRows.push([
       index + 1,
-      txId ? String(txId).substring(0, 8) : 'N/A',
+      invoice,
       tx.formattedTime || '',
       tx.paymentMethod || 'CASH',
       itemCount,
+      subtotal,
+      discount || 0,
       Number(tx.totalAmount) || 0,
       transCost,
       transProfit,
@@ -63,19 +77,17 @@ const buildWorkbook = (transactions) => {
     ]);
 
     rawItems.forEach((it, itemIdx) => {
-      const price = Number(it.price) || 0;
       const qty = Number(it.qty || it.quantity) || 1;
       const unitCost = Number(it.cost || it.hargaModal || 0) || 0;
+      const subtotalItem = Number(it.subtotal || (it.price * qty)) || 0;
       detailRows.push([
         `${index + 1}.${itemIdx + 1}`,
-        txId ? String(txId).substring(0, 8) : 'N/A',
-        tx.formattedTime || '',
+        invoice,
         it.name || it.nama || 'Tanpa Nama',
-        price,
-        unitCost,
+        Number(it.unitPrice || it.price) || 0,
         qty,
-        price * qty,
-        (price - unitCost) * qty,
+        subtotalItem,
+        subtotalItem - unitCost * qty,
       ]);
     });
   });
@@ -85,9 +97,11 @@ const buildWorkbook = (transactions) => {
   const transSheet = XLSX.utils.aoa_to_sheet(transRows);
   transSheet['!cols'] = [
     { wch: 5 },
-    { wch: 12 },
+    { wch: 18 },
     { wch: 22 },
     { wch: 16 },
+    { wch: 12 },
+    { wch: 18 },
     { wch: 12 },
     { wch: 18 },
     { wch: 18 },
@@ -100,10 +114,8 @@ const buildWorkbook = (transactions) => {
   const detailSheet = XLSX.utils.aoa_to_sheet(detailRows);
   detailSheet['!cols'] = [
     { wch: 8 },
-    { wch: 12 },
-    { wch: 22 },
+    { wch: 18 },
     { wch: 30 },
-    { wch: 14 },
     { wch: 14 },
     { wch: 6 },
     { wch: 14 },

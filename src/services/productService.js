@@ -31,13 +31,14 @@ export const getProducts = async () => {
 };
 
 // Tambah produk baru
-export const addProduct = async (name, price, stock, imageUrl, category = "", description = "", cost = null, variants = [], modifiers = []) => {
+export const addProduct = async (name, price, stock, imageUrl, category = "", description = "", cost = null, variants = [], modifiers = [], minStock = 5) => {
   try {
     await addDoc(productsCollection, {
       name,
       price: Number(price),
       cost: cost === null || cost === "" ? Number(price) : Number(cost),
       stock: Number(stock),
+      minStock: Number(minStock) || 5,
       imageUrl: imageUrl || "https://via.placeholder.com/150",
       category,
       description,
@@ -51,7 +52,7 @@ export const addProduct = async (name, price, stock, imageUrl, category = "", de
 };
 
 // Update produk
-export const updateProduct = async (id, name, price, stock, imageUrl, category = "", description = "", cost = null, variants = [], modifiers = []) => {
+export const updateProduct = async (id, name, price, stock, imageUrl, category = "", description = "", cost = null, variants = [], modifiers = [], minStock = 5) => {
   try {
     const productDoc = doc(db, "products", id);
     await updateDoc(productDoc, {
@@ -59,6 +60,7 @@ export const updateProduct = async (id, name, price, stock, imageUrl, category =
       price: Number(price),
       cost: cost === null || cost === "" ? Number(price) : Number(cost),
       stock: Number(stock),
+      minStock: Number(minStock) || 5,
       imageUrl: imageUrl || "https://via.placeholder.com/150",
       category,
       description,
