@@ -17,7 +17,8 @@ Aplikasi kasir (POS) berbasis **Expo SDK 57** (React Native + React Native Web) 
 | Lapisan | Teknologi |
 |---|---|
 | Framework | Expo SDK 57, React Native 0.86, React 19.2 |
-| Styling | NativeWind v4 (Tailwind) |
+| Styling | NativeWind v4 (Tailwind), font Satoshi |
+| Font | Satoshi (Fontshare, TTF di `assets/fonts/`), dimuat via `expo-font` |
 | Backend | Firebase Firestore |
 | Navigasi | React Navigation (native-stack) |
 | State | Zustand |
@@ -121,7 +122,8 @@ src/
     transactionService.js      # Transaksi + statistik + delete batch
     paymentService.js
   store/useCartStore.js        # Zustand store keranjang
-  utils/exportExcel.js         # Export transaksi ke .xlsx
+  utils/currency.js           # Format Rupiah (input live + parse + normalisasi)
+  utils/exportExcel.js        # Export transaksi ke .xlsx
 ```
 
 ## Screens & Alur
@@ -143,6 +145,10 @@ src/
 - Header layar: kotak `bg-surface` `rounded-b-[28px]`, judul + ikon 40px, search bar.
 - Tombol aksi ikon `w-10 h-10 rounded-2xl` dengan bg tint: `*-soft`.
 - Alert/konfirmasi memakai pola lintas-platform: `window.alert`/`window.confirm` di web, `Alert.alert` di native.
+
+## Font
+
+Aplikasi memakai **Satoshi** (lisensi bebas dari Fontshare). File TTF ada di `assets/fonts/` (Regular, Medium, Bold, Black, Light) dan dimuat di `App.js` lewat `expo-font` (`useFonts`). Kelas Tailwind `font-bold`, `font-extrabold`, `font-medium`, dst. dipetakan ke file Satoshi yang sesuai via plugin di `tailwind.config.js`. Struk cetak (TransactionDetail) tetap memakai `Courier New` agar tampil seperti struk asli.
 
 ## Lisensi
 

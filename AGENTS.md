@@ -2,6 +2,21 @@
 
 Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
 
+## Font: Satoshi
+
+- Seluruh UI memakai font **Satoshi** (Fontshare, Free License — file di `assets/fonts/`).
+- Font didaftarkan di `App.js` via `expo-font` (`useFonts`) dengan nama: `SatoshiRegular`, `SatoshiMedium`, `SatoshiBold`, `SatoshiBlack`, `SatoshiLight`.
+- Pemetaan kelas Tailwind diformat via **plugin di `tailwind.config.js`** (bukan core `font-weight`), karena native TIDAK bisa menebalkan file font statis:
+  - `font-thin`/`font-light` → `SatoshiLight`
+  - `font-normal` → `SatoshiRegular`
+  - `font-medium`/`font-semibold` → `SatoshiMedium`
+  - `font-bold` → `SatoshiBold`
+  - `font-extrabold`/`font-black` → `SatoshiBlack`
+- Hasil kompilasi CSS: kelas `font-*` menyimpan BOTH `font-weight` DAN `font-family: Satoshi*`.
+- `global.css`: base `font-family: SatoshiRegular` untuk web. `src/theme/theme.js` (`type.*`) memakai `fontFamily` Satoshi untuk pemakaian native non-Tailwind.
+- `AppNavigator` header title memakai `SatoshiBold`.
+- PENTING: saat menambah weight/font baru, daftarkan file `.ttf` di `App.js` + tambahkan mapping di plugin tailwind. Struk cetak (TransactionDetail) sengaja memakai `Courier New` (monospace) agar tampil seperti struk.
+
 ## Icons
 
 - Icon library: `@expo/vector-icons` (sudah terpasang sebagai dependency, versi ~15.x untuk SDK 57).
@@ -52,8 +67,18 @@ src/
     transactionService.js      # CRUD transaksi + statistik dashboard + delete batch
     paymentService.js
   store/useCartStore.js        # Zustand store keranjang
-  utils/exportExcel.js         # Export transaksi ke .xlsx (web & native)
+  utils/
+    currency.js                # Format Rupiah (input live + parse + normalisasi)
+    exportExcel.js             # Export transaksi ke .xlsx (web & native)
 ```
+
+## Format Rupiah (src/utils/currency.js)
+
+- `formatRupiah(value)` — tampilan: `Rp 1.500.000`.
+- `formatRupiahInput(text, {prefix})` — format input live dengan pemisah ribuan (titik) + prefix `Rp ` pas user mengetik. Dipakai di field harga (ProductManagerScreen) & nominal uang (PaymentScreen).
+- `parseRupiahInput(text)` — balik teks format ke angka (`"Rp 50.000"` → `50000`).
+- `normalizeMoney(value, fallback)` — normalisasi nominal number/string berformat jadi angka baku; dipakai `createTransaction` di `transactionService.js` (totalAmount/paymentAmount/change).
+- PENTING: saat menyimpan, jangan kirim string terformat ke Firestore — selalu `parseRupiahInput`/`normalizeMoney` dulu agar tersimpan angka (jika `Number("Rp 50.000")` => `NaN`).
 
 ## Skema Data Firestore
 

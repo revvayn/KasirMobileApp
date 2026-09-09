@@ -10,6 +10,10 @@ import {
   increment,
   serverTimestamp
 } from "firebase/firestore";
+import { normalizeMoney } from "../utils/currency";
+
+// Re-export helper Rupiah agar konsisten dipakai satu sumber
+export { formatRupiah, formatRupiahInput, parseRupiahInput } from "../utils/currency";
 
 /**
  * Menyimpan transaksi baru sekaligus mengurangi stok produk secara otomatis.
@@ -21,9 +25,25 @@ export const createTransaction = async (transactionData) => {
 
     // 1. Buat referensi dokumen transaksi baru di koleksi 'transactions'
     const transRef = doc(collection(db, "transactions"));
-    
+
+    // Normalisasi nilai nominal: terima number maupun string berformat
+    // ("Rp 100.000", "100.000") lalu simpan sebagai angka baku.
+    const normalizedTotal = normalizeMoney(transactionData.totalAmount);
+    const normalizedPayment = normalizeMoney(
+      transactionData.paymentAmount ?? transactionData.cashAmount ?? transactionData.cashReceived,
+      normalizedTotal
+    );
+    const normalizedChange = normalizeMoney(
+      transactionData.change,
+      normalizedPayment > normalizedTotal ? normalizedPayment - normalizedTotal : 0
+    );
+
     const payload = {
       ...transactionData,
+      totalAmount: normalizedTotal,
+      paymentAmount: normalizedPayment,
+      cashReceived: normalizedPayment,
+      change: normalizedChange,
       createdAt: serverTimestamp(),
       formattedTime: new Date().toLocaleString('id-ID', {
         day: '2-digit',

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, Image, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { getQRISUrl, processPayment } from '../services/paymentService';
 import colors from '../theme/colors';
+import { formatRupiahInput, parseRupiahInput } from '../utils/currency';
 
 export default function PaymentScreen({ route, navigation }) {
   const { cartItems = [], totalAmount = 0 } = route.params || {};
@@ -22,15 +23,16 @@ export default function PaymentScreen({ route, navigation }) {
   };
 
   const handleCashChange = (text) => {
-    setCashReceived(text);
-    const received = parseFloat(text) || 0;
+    const formatted = formatRupiahInput(text);
+    setCashReceived(formatted);
+    const received = parseRupiahInput(formatted);
     const computedChange = received - totalAmount;
     setChange(computedChange > 0 ? computedChange : 0);
   };
 
   const handleFinishPayment = async () => {
     if (paymentMethod === 'CASH') {
-      const received = parseFloat(cashReceived) || 0;
+      const received = parseRupiahInput(cashReceived);
       if (received < totalAmount) {
         Alert.alert('Pembayaran Gagal', 'Uang yang diterima kurang dari total tagihan!');
         return;
@@ -50,7 +52,7 @@ export default function PaymentScreen({ route, navigation }) {
         cartItems,
         totalAmount,
         paymentMethod,
-        paymentMethod === 'CASH' ? cashReceived : totalAmount,
+        paymentMethod === 'CASH' ? parseRupiahInput(cashReceived) : totalAmount,
         paymentMethod === 'CASH' ? change : 0
       );
 
@@ -63,7 +65,7 @@ export default function PaymentScreen({ route, navigation }) {
           items: cartItems,
           totalAmount: Number(totalAmount),
           paymentMethod: paymentMethod,
-          cashReceived: paymentMethod === 'CASH' ? Number(cashReceived) : Number(totalAmount),
+          cashReceived: paymentMethod === 'CASH' ? parseRupiahInput(cashReceived) : Number(totalAmount),
           change: paymentMethod === 'CASH' ? Number(change) : 0,
           formattedTime: new Date().toLocaleString('id-ID'),
         };
@@ -119,8 +121,8 @@ export default function PaymentScreen({ route, navigation }) {
         <View className="bg-surface p-4 rounded-card mb-4 items-center shadow-md">
           <Text className="text-xs font-bold text-ink self-start mb-2">Nominal Uang Diterima</Text>
           <TextInput
-            className="w-full border border-hairline rounded-lg p-2.5 mb-3 bg-bg text-ink text-[15px]"
-            placeholder="Contoh: 50000"
+            className="w-full border border-hairline rounded-lg p-2.5 mb-3 bg-bg text-ink text-[15px] font-extrabold"
+            placeholder="Rp 50.000"
             placeholderTextColor={colors['ink-muted']}
             keyboardType="numeric"
             value={cashReceived}

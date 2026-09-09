@@ -2,11 +2,10 @@ import * as XLSX from 'xlsx';
 import { Platform } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { formatRupiah } from './currency';
 
 const MIME_XLSX =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-
-const formatRupiah = (value) => `Rp ${(Number(value) || 0).toLocaleString('id-ID')}`;
 
 /**
  * Menyusun semua baris data untuk lembar kerja dari daftar transaksi.

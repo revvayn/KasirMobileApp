@@ -20,6 +20,7 @@ import {
   uploadProductImage,
 } from '../services/productService';
 import colors from '../theme/colors';
+import { formatRupiahInput, parseRupiahInput } from '../utils/currency';
 
 export default function ProductManagerScreen() {
   const [products, setProducts] = useState([]);
@@ -70,7 +71,7 @@ export default function ProductManagerScreen() {
   const openEditModal = (item) => {
     setEditingId(item.id);
     setName(item.name || item.nama || '');
-    setPrice(item.price !== undefined && item.price !== null ? String(item.price) : '0');
+    setPrice(formatRupiahInput(item.price));
     setStock(item.stock !== undefined && item.stock !== null ? String(item.stock) : '0');
     setCategory(item.category || '');
     setDescription(item.description || '');
@@ -83,7 +84,8 @@ export default function ProductManagerScreen() {
       showAlert('Peringatan', 'Nama produk wajib diisi.');
       return;
     }
-    if (price === '' || Number(price) < 0) {
+    const priceValue = parseRupiahInput(price);
+    if (price === '' || priceValue < 0) {
       showAlert('Peringatan', 'Harga produk wajib diisi dengan benar.');
       return;
     }
@@ -101,7 +103,7 @@ export default function ProductManagerScreen() {
         await updateProduct(
           editingId,
           name.trim(),
-          price,
+          priceValue,
           stock,
           finalImageUrl,
           category.trim(),
@@ -110,7 +112,7 @@ export default function ProductManagerScreen() {
       } else {
         await addProduct(
           name.trim(),
-          price,
+          priceValue,
           stock,
           finalImageUrl,
           category.trim(),
@@ -421,12 +423,12 @@ export default function ProductManagerScreen() {
               <View className="flex-1">
                 <Text className={labelClass}>Harga (Rp)</Text>
                 <TextInput
-                  className={inputClass}
-                  placeholder="0"
+                  className={`${inputClass} font-extrabold`}
+                  placeholder="Rp 0"
                   placeholderTextColor={colors['ink-muted']}
                   keyboardType="numeric"
                   value={price}
-                  onChangeText={setPrice}
+                  onChangeText={(text) => setPrice(formatRupiahInput(text))}
                 />
               </View>
               <View className="flex-1">

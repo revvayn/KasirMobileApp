@@ -45,12 +45,12 @@ export const spacing = {
 };
 
 export const type = {
-  title: { fontSize: 24, fontWeight: '800', color: colors.ink, letterSpacing: -0.3 },
-  subtitle: { fontSize: 13, fontWeight: '500', color: colors.inkMuted },
-  h2: { fontSize: 17, fontWeight: '700', color: colors.ink },
-  body: { fontSize: 14, fontWeight: '500', color: colors.ink },
-  caption: { fontSize: 12, fontWeight: '500', color: colors.inkMuted },
-  price: { fontSize: 15, fontWeight: '800', color: colors.ink },
+  title: { fontFamily: 'SatoshiBlack', fontSize: 24, fontWeight: '800', color: colors.ink, letterSpacing: -0.3 },
+  subtitle: { fontFamily: 'SatoshiMedium', fontSize: 13, fontWeight: '500', color: colors.inkMuted },
+  h2: { fontFamily: 'SatoshiBold', fontSize: 17, fontWeight: '700', color: colors.ink },
+  body: { fontFamily: 'SatoshiRegular', fontSize: 14, fontWeight: '400', color: colors.ink },
+  caption: { fontFamily: 'SatoshiMedium', fontSize: 12, fontWeight: '500', color: colors.inkMuted },
+  price: { fontFamily: 'SatoshiBlack', fontSize: 15, fontWeight: '800', color: colors.ink },
 };
 
 // Bayangan lembut ala kartu modern (bukan elevation Material default yang keras)

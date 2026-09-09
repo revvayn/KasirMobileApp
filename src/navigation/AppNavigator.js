@@ -21,7 +21,7 @@ export default function AppNavigator() {
         headerTitleAlign: 'center',
         headerStyle: { backgroundColor: colors.primary },
         headerTintColor: colors.surface,
-        headerTitleStyle: { fontWeight: '700' },
+        headerTitleStyle: { fontFamily: 'SatoshiBold', fontWeight: '700' },
         headerShadowVisible: false,
       }}
     >
