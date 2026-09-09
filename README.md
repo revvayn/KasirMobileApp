@@ -78,6 +78,55 @@ npm run ios
 npm start
 ```
 
+## Build APK (EAS Build)
+
+Project sudah dikonfigurasi untuk build ke Android via **EAS Build**:
+
+- **`app.json`** — identitas & metadata aplikasi:
+  - `name` / `slug`: `KasirMobileApp`, `version`: `1.0.0`
+  - `android.package`: `com.revvayn.KasirMobileApp` (ID unik untuk Play Store / install)
+  - `android.adaptiveIcon`: ikon adaptif (foreground/background/monochrome) Android 8+
+  - `plugins`: `expo-sharing`, `expo-font` (modul native yang harus ter-prebuild)
+  - `extra.eas.projectId`: `752e380c-5f5e-4117-9947-f8bda78ee050` (harus sama dengan project EAS kamu)
+- **`eas.json`** — profil build:
+  - `development` → **development client** (`distribution: internal`, `developmentClient: true`) untuk debugging di device tanpa Play Store.
+  - `preview` → **APK internal** (`buildType: "apk"`) — distribusi langsung install ke HP lain.
+  - `production` → **AAB** untuk Play Store (`autoIncrement: true` — versi naik otomatis tiap build).
+  - `cli.appVersionSource: "remote"` — versi dikelola oleh EAS dari project (`app.json` `version` sebagai basis).
+
+### Cara Build
+
+```bash
+# 1. Install EAS CLI & login ke akun Expo
+npm install -g eas-cli
+eas login
+
+# 2. Inisialisasi project EAS (sekali saja, jika projectId belum terhubung)
+eas init --id 752e380c-5f5e-4117-9947-f8bda78ee050
+
+# 3. Build APK preview (untuk diinstall langsung / dibagikan)
+eas build -p android --profile preview
+
+# 4. Build development client (jalankan di JS lewat npx expo start)
+eas build -p android --profile development
+
+# 5. Build production AAB (upload ke Play Store)
+eas build -p android --profile production
+```
+
+Hasil build muncul di halaman https://expo.dev/accounts/_/projects/KasirMobileApp/builds atau jalan `eas build:list`.
+
+> **Alternatif (tanpa cloud):** untuk APK debug lokal selama pengembangan:
+> `npx expo run:android` — menghasilkan APK debug di `android/app/build/outputs/apk/debug/`.
+> Catatan: build lokal butuh Android SDK yang terinstal + perangkat/emulator.
+
+### Sebelum Build ke Produksi
+
+- Pastikan `src/config/firebase.js` berisi kunci Firebase yang benar (web SDK). Aplikasi butuh koneksi internet saat build digunakan (sync data ke Firestore).
+- Cek `package.json` → `version` + `app.json` → `version` sesuai target rilis.
+- Untuk install APK preview di HP, aktifkan "Install from unknown sources" di pengaturan Android.
+- Keystore dikelola otomatis oleh EAS (jangan hilangkan `app.json` `android.package`).
+
 ## Skema Data Firestore
 
 ### `products`
