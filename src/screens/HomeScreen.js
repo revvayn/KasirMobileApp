@@ -8,6 +8,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { getProducts } from '../services/productService';
 import colors from '../theme/colors';
 
@@ -131,10 +132,10 @@ export default function HomeScreen({ navigation }) {
   const totalItemsInCart = cart.reduce((sum, item) => sum + item.qty, 0);
 
   const navItems = [
-    { key: 'Dashboard', label: 'Dashboard' },
-    { key: 'ProductManager', label: 'Produk' },
-    { key: 'History', label: 'Riwayat' },
-    { key: 'QRISSetting', label: 'QRIS' },
+    { key: 'Dashboard', label: 'Dashboard', icon: 'bar-chart' },
+    { key: 'ProductManager', label: 'Produk', icon: 'inventory-2' },
+    { key: 'History', label: 'Riwayat', icon: 'history' },
+    { key: 'QRISSetting', label: 'QRIS', icon: 'qr-code' },
   ];
 
   return (
@@ -260,8 +261,8 @@ export default function HomeScreen({ navigation }) {
             onPress={() => navigation.navigate(nav.key)}
             activeOpacity={0.75}
           >
-            <View className="w-7 h-7 rounded-full bg-surface-alt items-center justify-center mb-1.5">
-              <Text className="text-[11px] font-extrabold text-accent">{nav.label.charAt(0)}</Text>
+            <View className="w-8 h-8 rounded-full bg-accent-soft items-center justify-center mb-1.5">
+              <MaterialIcons name={nav.icon} size={20} color={colors.accent} />
             </View>
             <Text className="text-[11px] font-bold text-ink">{nav.label}</Text>
           </TouchableOpacity>
