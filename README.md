@@ -85,7 +85,8 @@ npm start
 | Field | Tipe | Keterangan |
 |---|---|---|
 | `name` | string | Nama produk (wajib) |
-| `price` | number | Harga satuan |
+| `price` | number | Harga jual satuan |
+| `cost` | number | Harga modal (opsional, default harga jual) — dasar hitung laba |
 | `stock` | number | Jumlah stok |
 | `imageUrl` | string | URL foto produk |
 | `category` | string | Kategori (opsional) |
@@ -96,15 +97,16 @@ npm start
 
 | Field | Tipe | Keterangan |
 |---|---|---|
-| `items` | array | Daftar keranjang `{ name, qty, price, subtotal, firestoreDocId }` |
+| `items` | array | Daftar keranjang `{ name, qty, price, cost (snapshot modal), subtotal, firestoreDocId }` |
 | `totalAmount` | number | Total transaksi |
 | `paymentMethod` | string | `CASH` / `QRIS` |
 | `paymentAmount` | number | Uang yang dibayar |
+| `cashReceived` | number | Alias uang yang dibayar (konsisten dengan detail struk) |
 | `change` | number | Kembalian |
 | `createdAt` | timestamp | Waktu transaksi (serverTimestamp) |
 | `formattedTime` | string | Waktu terformat (dihitung saat insert) |
 
-> **Penting:** `createTransaction` memotong stok produk secara atomis lewat `writeBatch` + `increment(-qty)`.
+> **Penting:** `createTransaction`/`processPayment` memotong stok produk secara atomis lewat `writeBatch` + `increment(-qty)`. Setiap `item` menyimpan snapshot `cost` saat checkout agar laba historis tetap akurat.
 
 ## Struktur Project
 

@@ -163,6 +163,31 @@ export const filterTransactionsByPeriod = (transactions, filterType, customDate 
   });
 };
 
+// Helper: hitung modal, laba kotor, dan margin dari satu transaksi
+// (memakai snapshot item.cost yang disimpan saat checkout)
+export const getTransactionProfit = (transaction) => {
+  const rawItems = Array.isArray(transaction?.items) ? transaction.items.flat() : [];
+  let cost = 0;
+  let profit = 0;
+
+  rawItems.forEach((item) => {
+    const qty = Number(item.qty || item.quantity) || 1;
+    const unitCost = Number(item.cost || item.hargaModal || 0) || 0;
+    const subtotal = Number(item.subtotal || (item.price * qty)) || 0;
+
+    cost += unitCost * qty;
+    profit += subtotal - unitCost * qty;
+  });
+
+  const revenue = Number(transaction?.totalAmount) || 0;
+  return {
+    cost,
+    profit,
+    revenue,
+    margin: revenue > 0 ? (profit / revenue) * 100 : 0,
+  };
+};
+
 // Mengolah statistik untuk Dashboard
 export const getDashboardStats = async (filterType = 'all', customDate = null) => {
   try {
@@ -170,6 +195,8 @@ export const getDashboardStats = async (filterType = 'all', customDate = null) =
     const filteredTransactions = filterTransactionsByPeriod(allTransactions, filterType, customDate);
 
     let totalRevenue = 0;
+    let totalCost = 0;
+    let totalProfit = 0;
     let totalItemsSold = 0;
     const productSalesMap = {};
 
@@ -181,8 +208,11 @@ export const getDashboardStats = async (filterType = 'all', customDate = null) =
         itemsList.forEach((item) => {
           const qty = Number(item.qty || item.quantity) || 0;
           const name = item.name || item.nama || "Tanpa Nama";
-          
+          const unitCost = Number(item.cost || item.hargaModal || 0) || 0;
+
           totalItemsSold += qty;
+          totalCost += unitCost * qty;
+          totalProfit += (Number(item.subtotal || (item.price * qty)) || 0) - unitCost * qty;
           productSalesMap[name] = (productSalesMap[name] || 0) + qty;
         });
       }
@@ -196,6 +226,9 @@ export const getDashboardStats = async (filterType = 'all', customDate = null) =
     return {
       totalTransactions: filteredTransactions.length,
       totalRevenue,
+      totalCost,
+      totalProfit,
+      profitMargin: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0,
       totalItemsSold,
       topProducts,
       recentTransactions: filteredTransactions.slice(0, 5),
@@ -205,6 +238,9 @@ export const getDashboardStats = async (filterType = 'all', customDate = null) =
     return {
       totalTransactions: 0,
       totalRevenue: 0,
+      totalCost: 0,
+      totalProfit: 0,
+      profitMargin: 0,
       totalItemsSold: 0,
       topProducts: [],
       recentTransactions: [],

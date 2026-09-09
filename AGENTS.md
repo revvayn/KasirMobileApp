@@ -82,8 +82,8 @@ src/
 
 ## Skema Data Firestore
 
-- `products` : `{ name, price, stock, imageUrl, category, description, createdAt }`
-- `transactions` : berisi `items` (array keranjang), `totalAmount`, `paymentMethod` (`CASH`/`QRIS`), `change`, `paymentAmount`, `createdAt` (serverTimestamp), `formattedTime` (string, dihitung saat insert).
+- `products` : `{ name, price, cost (harga modal), stock, imageUrl, category, description, createdAt }` — `cost` opsional; jika kosong default = harga jual, dipakai hitung laba.
+- `transactions` : berisi `items` (array keranjang, tiap item menyimpan snapshot `cost` saat checkout), `totalAmount`, `paymentMethod` (`CASH`/`QRIS`), `change`, `paymentAmount`, `cashReceived`, `createdAt` (serverTimestamp), `formattedTime` (string, dihitung saat insert).
 
 PENTING: Dokumen produk wajib punya stok yang cukup — `createTransaction` mengurangi stok produkk secara atomis lewat `writeBatch` + `increment(-qty)`.
 
@@ -108,26 +108,28 @@ PENTING: Dokumen produk wajib punya stok yang cukup — `createTransaction` meng
 
 ### DashboardScreen
 - Filter: `FilterBar`. Stats dari `getDashboardStats(filter, customDate)`.
-- Hero revenue card + grid statistik 2x2 (Total Transaksi, Item Terjual, Rata-rata Nilai, Item/Transaksi) + Produk Terlaris (dengan progress bar) + Transaksi Terbaru.
+- Hero revenue card + badge Laba & Margin + grid statistik (Laba Kotor, Margin, Total Transaksi, Item Terjual, Rata-rata Nilai, Item/Transaksi) + Produk Terlaris (dengan progress bar) + Transaksi Terbaru.
+- `getDashboardStats` mengembalikan juga: `totalCost`, `totalProfit`, `profitMargin` (%). Laba dihitung dari snapshot `item.cost` per transaksi (`getTransactionProfit`).
 
 ### HistoryScreen
 - Filter + pagination (10/halaman), hapus single & batch-dengan-filter.
+- Ringkasan filter: Total Penjualan, Laba Kotor (+margin), Item Terjual, Harga Modal.
 - Fitur **Export Excel**: tombol header (ikon hijau) + tombol utama membawa seluruh data `filteredTransactions`.
 
 ### ProductManagerScreen
 - Daftar produk + statistik mini (Total Produk, Total Stok, Stok Menipis).
 - Form tambah/edit dalam **Modal bottom sheet** (native `Modal` animationType slide) — pola yang dipilih agar list tetap rapi.
-- Validasi wajib: nama, harga ≥ 0, stok ≥ 0. Konfirmasi hapus sebelum dieksekusi.
+- Validasi wajib: nama, harga jual ≥ 0, stok ≥ 0; **Harga Modal (Rp)** opsional (default = harga jual jika kosong). Konfirmasi hapus sebelum dieksekusi.
 
 ## Export Excel (src/utils/exportExcel.js)
 
 - `exportTransactionsToExcel(transactions, label)` — menghasilkan `.xlsx` dengan 2 sheet:
-  1. `Transaksi` — ringkasan per transaksi (No, ID, Tanggal, Metode, Jumlah Item, Total, Uang Diterima, Kembalian).
-  2. `Detail Penjualan` — satu baris per item produk (No, ID, Tanggal, Nama Produk, Harga, Qty, Subtotal).
+  1. `Transaksi` — ringkasan per transaksi (No, ID, Tanggal, Metode, Jumlah Item, Total, Harga Modal, Laba Kotor, Uang Diterima, Kembalian).
+  2. `Detail Penjualan` — satu baris per item produk (No, ID, Tanggal, Nama Produk, Harga, Harga Modal, Qty, Subtotal, Laba).
 - **Web**: `XLSX.writeFile` → unduhan langsung browser.
 - **Native**: `XLSX.write` (base64) → `new File(Paths.cache, filename)` (`create({overwrite:true, intermediates:true})` + `write(base64, {encoding:'base64'})`) → `Sharing.shareAsync(file.uri)`.
 - Nama file dibersihkan (`sanitizeFilename`) + timestamp. Impor API SDK 57 dari `expo-file-system`: `import { File, Paths } from 'expo-file-system'`.
-- Biarkan `buildWorkbook` internal dikembangkan jika kolom report berubah. `formatRupiah` diexport juga untuk dipakai screen lain.
+- Laba dihitung dari `item.cost` snapshot di transaksi (transaksi lama tanpa `cost` dianggap 0). Biarkan `buildWorkbook` internal dikembangkan jika kolom report berubah. `formatRupiah` diexport juga untuk dipakai screen lain.
 
 ## Konvensi Lintas Platform (Web + Native)
 

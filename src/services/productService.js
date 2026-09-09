@@ -31,11 +31,12 @@ export const getProducts = async () => {
 };
 
 // Tambah produk baru
-export const addProduct = async (name, price, stock, imageUrl, category = "", description = "") => {
+export const addProduct = async (name, price, stock, imageUrl, category = "", description = "", cost = null) => {
   try {
     await addDoc(productsCollection, {
       name,
       price: Number(price),
+      cost: cost === null || cost === "" ? Number(price) : Number(cost),
       stock: Number(stock),
       imageUrl: imageUrl || "https://via.placeholder.com/150",
       category,
@@ -48,12 +49,13 @@ export const addProduct = async (name, price, stock, imageUrl, category = "", de
 };
 
 // Update produk
-export const updateProduct = async (id, name, price, stock, imageUrl, category = "", description = "") => {
+export const updateProduct = async (id, name, price, stock, imageUrl, category = "", description = "", cost = null) => {
   try {
     const productDoc = doc(db, "products", id);
     await updateDoc(productDoc, {
       name,
       price: Number(price),
+      cost: cost === null || cost === "" ? Number(price) : Number(cost),
       stock: Number(stock),
       imageUrl: imageUrl || "https://via.placeholder.com/150",
       category,

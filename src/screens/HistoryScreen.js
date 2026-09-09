@@ -13,6 +13,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   getTransactions,
   filterTransactionsByPeriod,
+  getTransactionProfit,
   deleteTransaction,
   deleteTransactionsByBatch,
 } from '../services/transactionService';
@@ -217,6 +218,17 @@ export default function HistoryScreen({ navigation }) {
     return sum + items.reduce((s, it) => s + (Number(it.qty || it.quantity) || 0), 0);
   }, 0);
 
+  // Modal & Laba Kotor berdasarkan filter aktif
+  const { totalProfit, totalCost } = filteredTransactions.reduce(
+    (acc, t) => {
+      const p = getTransactionProfit(t);
+      acc.totalProfit += p.profit;
+      acc.totalCost += p.cost;
+      return acc;
+    },
+    { totalProfit: 0, totalCost: 0 }
+  );
+
   const summaryCard = (label, value, subLabel, icon, tint, soft) => (
     <View className="flex-1 p-3.5 rounded-[18px] bg-surface border border-hairline">
       <View className="flex-row items-center mb-2">
@@ -282,9 +294,15 @@ export default function HistoryScreen({ navigation }) {
         {/* Ringkasan filter aktif + Export */}
         {filteredTransactions.length > 0 && (
           <View className="mt-1.5">
-            <View className="flex-row gap-2.5">
-              {summaryCard('Total Penjualan', formatRupiah(totalRevenue), `${filteredTransactions.length} transaksi`, 'payments', colors.success, colors['success-soft'])}
-              {summaryCard('Item Terjual', `${totalItemsSold} pcs`, `${totalItemsSold} produk rerata`, 'inventory', colors.accent, colors['accent-soft'])}
+            <View className="gap-2.5">
+              <View className="flex-row gap-2.5">
+                {summaryCard('Total Penjualan', formatRupiah(totalRevenue), `${filteredTransactions.length} transaksi`, 'payments', colors.success, colors['success-soft'])}
+                {summaryCard('Laba Kotor', formatRupiah(totalProfit), totalRevenue > 0 ? `Margin ${((totalProfit / totalRevenue) * 100).toFixed(1)}%` : 'Margin 0%', 'trending-up', colors.accent, colors['accent-soft'])}
+              </View>
+              <View className="flex-row gap-2.5">
+                {summaryCard('Item Terjual', `${totalItemsSold} pcs`, 'Jumlah produk terjual', 'inventory', '#4A6CF7', '#E7EBFD')}
+                {summaryCard('Harga Modal', formatRupiah(totalCost), 'Total modal produk terjual', 'storefront', '#C05621', '#FDEACF')}
+              </View>
             </View>
             <TouchableOpacity
               className="mt-2.5 bg-primary rounded-2xl py-3 flex-row items-center justify-center"

@@ -9,6 +9,9 @@ export default function DashboardScreen({ navigation }) {
   const [stats, setStats] = useState({
     totalTransactions: 0,
     totalRevenue: 0,
+    totalCost: 0,
+    totalProfit: 0,
+    profitMargin: 0,
     totalItemsSold: 0,
     topProducts: [],
     recentTransactions: [],
@@ -51,6 +54,20 @@ export default function DashboardScreen({ navigation }) {
       : '0';
 
   const statCards = [
+    {
+      label: 'Laba Kotor',
+      value: formatRupiah(stats.totalProfit),
+      icon: 'trending-up',
+      tint: colors.success,
+      soft: colors['success-soft'],
+    },
+    {
+      label: 'Margin Laba',
+      value: `${stats.profitMargin.toFixed(1)}%`,
+      icon: 'percent',
+      tint: colors.accent,
+      soft: colors['accent-soft'],
+    },
     {
       label: 'Total Transaksi',
       value: String(stats.totalTransactions),
@@ -128,6 +145,18 @@ export default function DashboardScreen({ navigation }) {
             <Text className="text-white text-[30px] font-extrabold -tracking-tight">
               {formatRupiah(stats.totalRevenue)}
             </Text>
+            <View className="flex-row items-center mt-1.5 gap-1">
+              <View className="bg-white/15 rounded-full px-2.5 py-1">
+                <Text className="text-white text-[11px] font-bold">
+                  Laba {formatRupiah(stats.totalProfit)}
+                </Text>
+              </View>
+              <View className="bg-success/90 rounded-full px-2.5 py-1">
+                <Text className="text-white text-[11px] font-bold">
+                  Margin {stats.profitMargin.toFixed(1)}%
+                </Text>
+              </View>
+            </View>
             <Text className="text-white/60 text-xs font-medium mt-1.5">
               {stats.totalTransactions} transaksi berhasil · {stats.totalItemsSold} item terjual
             </Text>

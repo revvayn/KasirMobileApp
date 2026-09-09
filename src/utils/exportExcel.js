@@ -21,13 +21,15 @@ const buildWorkbook = (transactions) => {
       'Metode Pembayaran',
       'Jumlah Item',
       'Total',
+      'Harga Modal',
+      'Laba Kotor',
       'Uang Diterima',
       'Kembalian',
     ],
   ];
 
   const detailRows = [
-    ['No', 'ID Transaksi', 'Tanggal / Waktu', 'Nama Produk', 'Harga', 'Qty', 'Subtotal'],
+    ['No', 'ID Transaksi', 'Tanggal / Waktu', 'Nama Produk', 'Harga', 'Harga Modal', 'Qty', 'Subtotal', 'Laba'],
   ];
 
   transactions.forEach((tx, index) => {
@@ -38,6 +40,15 @@ const buildWorkbook = (transactions) => {
     );
     const txId = tx.firestoreDocId || tx.id || tx.docId || '';
 
+    let transCost = 0;
+    let transProfit = 0;
+    rawItems.forEach((it) => {
+      const qty = Number(it.qty || it.quantity) || 1;
+      const unitCost = Number(it.cost || it.hargaModal || 0) || 0;
+      transCost += unitCost * qty;
+      transProfit += (Number(it.subtotal || (it.price * qty)) || 0) - unitCost * qty;
+    });
+
     transRows.push([
       index + 1,
       txId ? String(txId).substring(0, 8) : 'N/A',
@@ -45,21 +56,26 @@ const buildWorkbook = (transactions) => {
       tx.paymentMethod || 'CASH',
       itemCount,
       Number(tx.totalAmount) || 0,
-      Number(tx.paymentAmount) || Number(tx.cashAmount) || 0,
+      transCost,
+      transProfit,
+      Number(tx.paymentAmount) || Number(tx.cashAmount) || Number(tx.cashReceived) || 0,
       Number(tx.change) || 0,
     ]);
 
     rawItems.forEach((it, itemIdx) => {
       const price = Number(it.price) || 0;
       const qty = Number(it.qty || it.quantity) || 1;
+      const unitCost = Number(it.cost || it.hargaModal || 0) || 0;
       detailRows.push([
         `${index + 1}.${itemIdx + 1}`,
         txId ? String(txId).substring(0, 8) : 'N/A',
         tx.formattedTime || '',
         it.name || it.nama || 'Tanpa Nama',
         price,
+        unitCost,
         qty,
         price * qty,
+        (price - unitCost) * qty,
       ]);
     });
   });
@@ -76,6 +92,8 @@ const buildWorkbook = (transactions) => {
     { wch: 18 },
     { wch: 18 },
     { wch: 18 },
+    { wch: 18 },
+    { wch: 18 },
   ];
   XLSX.utils.book_append_sheet(wb, transSheet, 'Transaksi');
 
@@ -86,7 +104,9 @@ const buildWorkbook = (transactions) => {
     { wch: 22 },
     { wch: 30 },
     { wch: 14 },
+    { wch: 14 },
     { wch: 6 },
+    { wch: 14 },
     { wch: 14 },
   ];
   XLSX.utils.book_append_sheet(wb, detailSheet, 'Detail Penjualan');

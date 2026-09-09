@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { getTransactionProfit } from '../services/transactionService';
 import colors from '../theme/colors';
 
 export default function TransactionDetailScreen({ route, navigation }) {
@@ -29,6 +30,7 @@ export default function TransactionDetailScreen({ route, navigation }) {
   }
 
   const rawItems = Array.isArray(transaction.items) ? transaction.items.flat() : [];
+  const profitData = getTransactionProfit(transaction);
 
   // Helper Alert Lintas Platform
   const showAlert = (title, message) => {
@@ -211,6 +213,24 @@ export default function TransactionDetailScreen({ route, navigation }) {
           <Text className="text-ink-muted text-sm">Total Tagihan:</Text>
           <Text className="font-extrabold text-success text-base">
             Rp {Number(transaction.totalAmount || 0).toLocaleString('id-ID')}
+          </Text>
+        </View>
+
+        <View className="flex-row justify-between my-1">
+          <Text className="text-ink-muted text-sm">Harga Modal:</Text>
+          <Text className="font-bold text-ink text-sm">
+            Rp {Number(profitData.cost || 0).toLocaleString('id-ID')}
+          </Text>
+        </View>
+        <View className="flex-row justify-between my-1">
+          <Text className="text-ink-muted text-sm">Laba Kotor:</Text>
+          <Text className="font-extrabold text-success text-sm">
+            Rp {Number(profitData.profit || 0).toLocaleString('id-ID')}
+            {profitData.revenue > 0 && (
+              <Text className="text-[11px] font-medium text-ink-muted">
+                {' '}({profitData.margin.toFixed(1)}%)
+              </Text>
+            )}
           </Text>
         </View>
 

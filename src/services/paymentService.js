@@ -36,7 +36,11 @@ export const processPayment = async (cartItems, totalAmount, paymentMethod, cash
         // 1. Buat Referensi Dokumen Transaksi Baru
         const transRef = doc(collection(db, 'transactions'));
         
-        const cleanItems = cartItems.flat();
+        // Snapshot harga modal (cost) per item agar laba historis tetap akurat
+        const cleanItems = cartItems.flat().map((item) => ({
+          ...item,
+          cost: Number(item.cost ?? item.hargaModal ?? 0),
+        }));
         const formattedTimeStr = new Date().toLocaleString('id-ID', {
             day: '2-digit',
             month: 'short',
@@ -49,7 +53,8 @@ export const processPayment = async (cartItems, totalAmount, paymentMethod, cash
             items: cleanItems,
             totalAmount: Number(totalAmount) || 0,
             paymentMethod: paymentMethod || 'CASH',
-            cashReceived: Number(cashReceived) || 0,
+            paymentAmount: Number(cashReceived) || Number(totalAmount) || 0,
+            cashReceived: Number(cashReceived) || Number(totalAmount) || 0,
             change: Number(change) || 0,
             createdAt: serverTimestamp(),
             formattedTime: formattedTimeStr,

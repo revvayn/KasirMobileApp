@@ -33,6 +33,7 @@ export default function ProductManagerScreen() {
   const [editingId, setEditingId] = useState(null);
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
+  const [cost, setCost] = useState('');
   const [stock, setStock] = useState('');
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
@@ -61,6 +62,7 @@ export default function ProductManagerScreen() {
     setEditingId(null);
     setName('');
     setPrice('');
+    setCost('');
     setStock('');
     setCategory('');
     setDescription('');
@@ -72,6 +74,7 @@ export default function ProductManagerScreen() {
     setEditingId(item.id);
     setName(item.name || item.nama || '');
     setPrice(formatRupiahInput(item.price));
+    setCost(formatRupiahInput(item.cost));
     setStock(item.stock !== undefined && item.stock !== null ? String(item.stock) : '0');
     setCategory(item.category || '');
     setDescription(item.description || '');
@@ -86,7 +89,12 @@ export default function ProductManagerScreen() {
     }
     const priceValue = parseRupiahInput(price);
     if (price === '' || priceValue < 0) {
-      showAlert('Peringatan', 'Harga produk wajib diisi dengan benar.');
+      showAlert('Peringatan', 'Harga jual produk wajib diisi dengan benar.');
+      return;
+    }
+    const costValue = parseRupiahInput(cost);
+    if (cost !== '' && (isNaN(costValue) || costValue < 0)) {
+      showAlert('Peringatan', 'Harga modal produk wajib diisi dengan benar.');
       return;
     }
     if (stock === '' || Number(stock) < 0) {
@@ -107,7 +115,8 @@ export default function ProductManagerScreen() {
           stock,
           finalImageUrl,
           category.trim(),
-          description.trim()
+          description.trim(),
+          cost !== '' ? costValue : null
         );
       } else {
         await addProduct(
@@ -116,7 +125,8 @@ export default function ProductManagerScreen() {
           stock,
           finalImageUrl,
           category.trim(),
-          description.trim()
+          description.trim(),
+          cost !== '' ? costValue : null
         );
       }
 
@@ -157,6 +167,7 @@ export default function ProductManagerScreen() {
     setEditingId(null);
     setName('');
     setPrice('');
+    setCost('');
     setStock('');
     setCategory('');
     setDescription('');
@@ -421,7 +432,7 @@ export default function ProductManagerScreen() {
 
             <View className="flex-row gap-3">
               <View className="flex-1">
-                <Text className={labelClass}>Harga (Rp)</Text>
+                <Text className={labelClass}>Harga Jual (Rp)</Text>
                 <TextInput
                   className={`${inputClass} font-extrabold`}
                   placeholder="Rp 0"
@@ -443,6 +454,16 @@ export default function ProductManagerScreen() {
                 />
               </View>
             </View>
+
+            <Text className={labelClass}>Harga Modal (Rp)</Text>
+            <TextInput
+              className={`${inputClass} font-medium`}
+              placeholder="Kosongkan jika sama dengan harga jual"
+              placeholderTextColor={colors['ink-muted']}
+              keyboardType="numeric"
+              value={cost}
+              onChangeText={(text) => setCost(formatRupiahInput(text))}
+            />
 
             <Text className={labelClass}>Deskripsi</Text>
             <TextInput
