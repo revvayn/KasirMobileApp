@@ -4,8 +4,8 @@ Aplikasi kasir (POS) berbasis **Expo SDK 57** (React Native + React Native Web) 
 
 ## Fitur
 
-- 📦 **Katalog & Manajemen Produk** — daftar produk 2 kolom, pencarian, tambah/edit/hapus produk lewat modal bottom sheet, upload foto via URL, statistik stok (menipis/habis).
-- 🛒 **Keranjang & Pembayaran** — pilih produk, hitung total otomatis, checkout ke layar pembayaran.
+- 📦 **Katalog & Manajemen Produk** — daftar produk 2 kolom, pencarian, tambah/edit/hapus produk lewat modal bottom sheet, upload foto via URL, statistik stok (menipis/habis), **varian** (cth. Panas/Dingin + tambahan harga) & **modifier** (cth. Level Pedas).
+- 🛒 **Keranjang & Pembayaran** — keranjang pintar memisahkan item beda varian/catatan (Kopi Panas vs Kopi Dingin), modal pilih varian/modifier/catatan, total harga otomatis.
 - 💵 **Pembayaran TUNAI & QRIS** — dukungan print struk dan QRIS.
 - 📊 **Dashboard Laporan** — Total Pendapatan, Total Transaksi, Item Terjual, Rata-rata Nilai, Item/Transaksi, Produk Terlaris (progress bar), Transaksi Terbaru; filter Hari Ini/Bulan/Tahun/Semua/Tanggal.
 - 🧾 **Riwayat Transaksi** — pagination, lihat detail, hapus per item / batch per filter.
@@ -140,13 +140,15 @@ Hasil build muncul di halaman https://expo.dev/accounts/_/projects/KasirMobileAp
 | `imageUrl` | string | URL foto produk |
 | `category` | string | Kategori (opsional) |
 | `description` | string | Deskripsi (opsional) |
+| `variants` | array | Varian `[{ id, name, extraPrice }]` — cth. Panas +Rp 0, Dingin +Rp 2.000 (opsional) |
+| `modifiers` | array | Modifier `[{ id, name, options: string[] }]` — cth. Level Pedas (opsional) |
 | `createdAt` | timestamp | Waktu dibuat |
 
 ### `transactions`
 
 | Field | Tipe | Keterangan |
 |---|---|---|
-| `items` | array | Daftar keranjang `{ name, qty, price, cost (snapshot modal), subtotal, firestoreDocId }` |
+| `items` | array | Daftar keranjang `{ name, qty, price, cost (snapshot modal), variant, modifiers, customNote, unitPrice, subtotal, firestoreDocId }` |
 | `totalAmount` | number | Total transaksi |
 | `paymentMethod` | string | `CASH` / `QRIS` |
 | `paymentAmount` | number | Uang yang dibayar |
@@ -168,12 +170,14 @@ src/
   screens/                     # Home, Dashboard, History, ProductManager,
                                # Payment, QRISSetting, TransactionDetail
   components/FilterBar.js      # Filter periode (Hari Ini/Bulan/Tahun/Semua/Tanggal)
+  components/ProductOptionModal.js # Modal pilih varian/modifier/catatan
   services/
     productService.js          # CRUD produk
     transactionService.js      # Transaksi + statistik + delete batch
     paymentService.js
-  store/useCartStore.js        # Zustand store keranjang
+  store/useCartStore.js        # Zustand store keranjang (unique cartId per varian)
   utils/currency.js           # Format Rupiah (input live + parse + normalisasi)
+  utils/cartLabel.js          # Label varian/modifier/catatan (badge & struk)
   utils/exportExcel.js        # Export transaksi ke .xlsx
 ```
 
@@ -185,7 +189,7 @@ src/
 | **Dashboard** | Ringkasan laporan + filter + produk terlaris + transaksi terbaru |
 | **History** | Riwayat transaksi, pagination, hapus, export Excel |
 | **ProductManager** | CRUD produk dengan modal bottom sheet |
-| **Payment** | Input bayar tunai/QRIS, print struk |
+| **Payment** | Input bayar tunai/QRIS, ringkasan pesanan (varian/badge), print struk |
 | **QRISSetting** | Pengaturan QRIS |
 | **TransactionDetail** | Detail transaksi setelah sukses |
 

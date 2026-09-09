@@ -12,17 +12,25 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { getProducts } from '../services/productService';
+import { useCartStore } from '../store/useCartStore';
+import ProductOptionModal from '../components/ProductOptionModal';
+import { getItemOptionsLabel } from '../utils/cartLabel';
 import colors from '../theme/colors';
 
 export default function HomeScreen({ navigation }) {
   const [products, setProducts] = useState([]);
-  const [cart, setCart] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState(null);
+
+  const cart = useCartStore((s) => s.cart);
+  const addToCart = useCartStore((s) => s.addToCart);
+  const decreaseQty = useCartStore((s) => s.decreaseQty);
+  const clearCart = useCartStore((s) => s.clearCart);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       fetchProducts();
-      setCart([]); // Reset keranjang saat kembali ke halaman utama
+      clearCart(); // Reset keranjang saat kembali ke halaman utama
     });
     return unsubscribe;
   }, [navigation]);
@@ -48,79 +56,49 @@ export default function HomeScreen({ navigation }) {
 
   const getDocId = (item) => item.firestoreDocId || item.id || item.docId;
 
-  const addToCart = (product) => {
-    const productId = getDocId(product);
-    const stockLimit = Number(product.stock || 0);
+  const hasOptions = (product) =>
+    (product?.variants && product.variants.length > 0) ||
+    (product?.modifiers && product.modifiers.length > 0);
 
+  const showStockLimitAlert = () =>
+    showAlert('Batas Stok', 'Jumlah melebihi stok yang tersedia.');
+
+  // Klik produk: langsung masuk keranjang (sembako) atau buka modal opsi (kuliner)
+  const handleProductPress = (product) => {
+    const stockLimit = Number(product.stock || 0);
     if (stockLimit <= 0) {
       showAlert('Stok Habis', 'Produk ini tidak tersedia.');
       return;
     }
 
-    setCart((prevCart) => {
-      const existingIndex = prevCart.findIndex((item) => getDocId(item) === productId);
+    if (hasOptions(product)) {
+      setSelectedProduct(product);
+      return;
+    }
 
-      if (existingIndex > -1) {
-        const currentQty = prevCart[existingIndex].qty;
-        if (currentQty >= stockLimit) {
-          showAlert('Batas Stok', 'Jumlah melebihi stok yang tersedia.');
-          return prevCart;
-        }
-
-        const updatedCart = [...prevCart];
-        const newQty = currentQty + 1;
-        const price = Number(product.price || 0);
-
-        updatedCart[existingIndex] = {
-          ...updatedCart[existingIndex],
-          qty: newQty,
-          subtotal: newQty * price,
-        };
-        return updatedCart;
-      }
-
-      const price = Number(product.price || 0);
-      return [
-        ...prevCart,
-        {
-          ...product,
-          firestoreDocId: productId,
-          qty: 1,
-          subtotal: price,
-        },
-      ];
-    });
+    const result = addToCart(product, {});
+    if (!result.ok && result.reason === 'STOCK_LIMIT') showStockLimitAlert();
   };
 
-  const removeFromCart = (product) => {
-    const productId = getDocId(product);
-
-    setCart((prevCart) => {
-      const existingIndex = prevCart.findIndex((item) => getDocId(item) === productId);
-
-      if (existingIndex > -1) {
-        const updatedCart = [...prevCart];
-        const currentQty = updatedCart[existingIndex].qty;
-        const price = Number(product.price || 0);
-
-        if (currentQty > 1) {
-          const newQty = currentQty - 1;
-          updatedCart[existingIndex] = {
-            ...updatedCart[existingIndex],
-            qty: newQty,
-            subtotal: newQty * price,
-          };
-          return updatedCart;
-        } else {
-          // Jika qty sisa 1, hapus item dari keranjang
-          return updatedCart.filter((item) => getDocId(item) !== productId);
-        }
-      }
-      return prevCart;
-    });
+  const handleConfirmOptions = (options) => {
+    if (!selectedProduct) return;
+    const result = addToCart(selectedProduct, options);
+    setSelectedProduct(null);
+    if (!result.ok && result.reason === 'STOCK_LIMIT') showStockLimitAlert();
   };
 
-  const calculateTotal = () => cart.reduce((sum, item) => sum + (Number(item.subtotal) || 0), 0);
+  // Tombol + pada kartu: tambah kombinasi varian yang sama seperti item di keranjang
+  const handlePlus = (cartItem) => {
+    const result = addToCart(cartItem, {
+      variant: cartItem.variant,
+      modifiers: cartItem.modifiers,
+      customNote: cartItem.customNote,
+    });
+    if (!result.ok && result.reason === 'STOCK_LIMIT') showStockLimitAlert();
+  };
+
+  const calculateTotal = () =>
+    cart.reduce((sum, item) => sum + (Number(item.subtotal) || 0), 0);
 
   // Arahkan ke Payment (Disesuaikan dengan AppNavigator 'Payment')
   const handleCheckout = () => {
@@ -210,8 +188,9 @@ export default function HomeScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
           const itemId = getDocId(item);
-          const inCartItem = cart.find((c) => getDocId(c) === itemId);
-          const cartQty = inCartItem ? inCartItem.qty : 0;
+          const inCartItems = cart.filter((c) => getDocId(c) === itemId);
+          const cartQty = inCartItems.reduce((sum, c) => sum + c.qty, 0);
+          const firstCartItem = inCartItems[0];
           const outOfStock = Number(item.stock || 0) <= 0;
 
           return (
@@ -219,7 +198,7 @@ export default function HomeScreen({ navigation }) {
               className={`basis-[48%] bg-surface rounded-[20px] overflow-hidden border-[1.5px] ${
                 cartQty > 0 ? 'border-accent shadow-md' : 'border-hairline'
               }`}
-              onPress={() => addToCart(item)}
+              onPress={() => handleProductPress(item)}
               activeOpacity={0.85}
               disabled={outOfStock}
             >
@@ -251,24 +230,29 @@ export default function HomeScreen({ navigation }) {
                   Rp {Number(item.price || 0).toLocaleString('id-ID')}
                 </Text>
 
-                {cartQty > 0 && (
-                  <View className="flex-row items-center justify-between mt-2.5 bg-bg rounded-xl px-1.5 py-1">
-                    <TouchableOpacity
-                      className="w-7 h-7 rounded-lg bg-danger items-center justify-center"
-                      onPress={() => removeFromCart(item)}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    >
-                      <MaterialIcons name="remove" size={16} color="#fff" />
-                    </TouchableOpacity>
-                    <Text className="font-extrabold text-ink text-sm">{cartQty}</Text>
-                    <TouchableOpacity
-                      className="w-7 h-7 rounded-lg bg-primary items-center justify-center"
-                      onPress={() => addToCart(item)}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    >
-                      <MaterialIcons name="add" size={16} color="#fff" />
-                    </TouchableOpacity>
-                  </View>
+                {cartQty > 0 && firstCartItem && (
+                  <>
+                    <Text className="text-[11px] font-medium text-ink-muted mt-1" numberOfLines={1}>
+                      {getItemOptionsLabel(firstCartItem)}
+                    </Text>
+                    <View className="flex-row items-center justify-between mt-2 bg-bg rounded-xl px-1.5 py-1">
+                      <TouchableOpacity
+                        className="w-7 h-7 rounded-lg bg-danger items-center justify-center"
+                        onPress={() => decreaseQty(firstCartItem.cartId)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <MaterialIcons name="remove" size={16} color="#fff" />
+                      </TouchableOpacity>
+                      <Text className="font-extrabold text-ink text-sm">{cartQty}</Text>
+                      <TouchableOpacity
+                        className="w-7 h-7 rounded-lg bg-primary items-center justify-center"
+                        onPress={() => handlePlus(firstCartItem)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <MaterialIcons name="add" size={16} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
+                  </>
                 )}
               </View>
             </TouchableOpacity>
@@ -312,6 +296,14 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Modal Pilihan Varian & Modifier */}
+      <ProductOptionModal
+        visible={!!selectedProduct}
+        product={selectedProduct}
+        onClose={() => setSelectedProduct(null)}
+        onConfirm={handleConfirmOptions}
+      />
     </View>
   );
 }

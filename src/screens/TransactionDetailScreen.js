@@ -11,6 +11,7 @@ import {
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { getTransactionProfit } from '../services/transactionService';
+import { getItemOptionsLabel } from '../utils/cartLabel';
 import colors from '../theme/colors';
 
 export default function TransactionDetailScreen({ route, navigation }) {
@@ -47,7 +48,15 @@ export default function TransactionDetailScreen({ route, navigation }) {
       .map(
         (item) => `
         <tr>
-          <td style="padding: 4px 0; font-size: 12px;">${item?.name || item?.nama || 'Produk'} x${item?.qty || item?.quantity || 1}</td>
+          <td style="padding: 4px 0; font-size: 12px;">
+            ${item?.name || item?.nama || 'Produk'} x${item?.qty || item?.quantity || 1}
+            ${(() => {
+              const opts = getItemOptionsLabel(item);
+              return opts
+                ? `<br/><span style="font-size: 10px;">${opts.replace(/"/g, '&quot;')}</span>`
+                : '';
+            })()}
+          </td>
           <td style="padding: 4px 0; font-size: 12px; text-align: right;">Rp ${(
             Number(item?.subtotal || (item?.price * (item?.qty || 1)) || 0)
           ).toLocaleString('id-ID')}</td>
@@ -191,16 +200,26 @@ export default function TransactionDetailScreen({ route, navigation }) {
         <View className="h-px bg-hairline my-2.5" />
 
         <Text className="font-bold text-ink mb-2">Produk Dibeli:</Text>
-        {rawItems.map((item, index) => (
-          <View key={item?.firestoreDocId || item?.id || index} className="flex-row justify-between mb-1.5">
-            <Text className="text-sm text-ink flex-1">
-              {item?.name || item?.nama || 'Produk'} x{item?.qty || item?.quantity || 1}
-            </Text>
-            <Text className="text-sm font-bold text-ink">
-              Rp {Number(item?.subtotal || (item?.price * (item?.qty || 1)) || 0).toLocaleString('id-ID')}
-            </Text>
-          </View>
-        ))}
+        {rawItems.map((item, index) => {
+          const optionsLabel = getItemOptionsLabel(item);
+          return (
+            <View key={item?.firestoreDocId || item?.id || index} className="mb-1.5">
+              <View className="flex-row justify-between">
+                <Text className="text-sm text-ink flex-1">
+                  {item?.name || item?.nama || 'Produk'} x{item?.qty || item?.quantity || 1}
+                </Text>
+                <Text className="text-sm font-bold text-ink">
+                  Rp {Number(item?.subtotal || (item?.price * (item?.qty || 1)) || 0).toLocaleString('id-ID')}
+                </Text>
+              </View>
+              {optionsLabel ? (
+                <Text className="text-[11px] font-medium text-ink-muted ml-1 mt-0.5" numberOfLines={2}>
+                  {optionsLabel}
+                </Text>
+              ) : null}
+            </View>
+          );
+        })}
 
         <View className="h-px bg-hairline my-2.5" />
 

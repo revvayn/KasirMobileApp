@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, Image, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { getQRISUrl, processPayment } from '../services/paymentService';
+import { useCartStore } from '../store/useCartStore';
+import { getItemOptionsLabel } from '../utils/cartLabel';
 import colors from '../theme/colors';
 import { formatRupiahInput, parseRupiahInput } from '../utils/currency';
 
 export default function PaymentScreen({ route, navigation }) {
   const { cartItems = [], totalAmount = 0 } = route.params || {};
+
+  const clearCart = useCartStore((s) => s.clearCart);
 
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [cashReceived, setCashReceived] = useState('');
@@ -71,6 +75,7 @@ export default function PaymentScreen({ route, navigation }) {
         };
 
         // Otomatis mengganti layar ke TransactionDetail tanpa tertahan Alert
+        clearCart(); // Kosongkan keranjang (store) setelah transaksi berhasil
         navigation.replace('TransactionDetail', {
           transaction: transactionData,
         });
@@ -94,6 +99,44 @@ export default function PaymentScreen({ route, navigation }) {
         <Text className="text-[13px] text-white opacity-75 font-semibold">Total Tagihan</Text>
         <Text className="text-[26px] font-extrabold text-white mt-1">Rp {totalAmount.toLocaleString('id-ID')}</Text>
       </View>
+
+      {/* Ringkasan Pesanan */}
+      {cartItems.length > 0 && (
+        <View className="bg-surface p-4 rounded-card mb-4 shadow-md border border-hairline">
+          <Text className="text-xs font-bold text-ink-muted mb-2.5">
+            Ringkasan Pesanan ({cartItems.length} jenis)
+          </Text>
+          {cartItems.map((item, index) => {
+            const optionsLabel = getItemOptionsLabel(item);
+            const unitPrice = Number(item.unitPrice ?? item.price ?? 0);
+            return (
+              <View
+                key={item.cartId || `${item.firestoreDocId || item.id || 'item'}_${index}`}
+                className={`py-2 ${index !== cartItems.length - 1 ? 'border-b border-hairline' : ''}`}
+              >
+                <View className="flex-row items-center justify-between">
+                  <Text className="flex-1 font-bold text-[13px] text-ink" numberOfLines={1}>
+                    {item.name || item.nama || 'Produk'}
+                    <Text className="text-ink-muted font-medium"> x{item.qty}</Text>
+                  </Text>
+                  <Text className="font-extrabold text-[13px] text-ink ml-2">
+                    Rp {((Number(item.subtotal) || 0)).toLocaleString('id-ID')}
+                  </Text>
+                </View>
+                {optionsLabel ? (
+                  <Text className="text-[11px] font-medium text-ink-muted mt-0.5" numberOfLines={2}>
+                    {optionsLabel}
+                  </Text>
+                ) : item.unitPrice && Number(item.unitPrice) !== Number(item.price || 0) ? (
+                  <Text className="text-[11px] font-medium text-ink-muted mt-0.5">
+                    @ {Number(unitPrice).toLocaleString('id-ID')}
+                  </Text>
+                ) : null}
+              </View>
+            );
+          })}
+        </View>
+      )}
 
       <View className="flex-row justify-between mb-4 gap-3">
         <TouchableOpacity

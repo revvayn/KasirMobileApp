@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Modal,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import {
@@ -38,6 +39,10 @@ export default function ProductManagerScreen() {
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [variants, setVariants] = useState([]);
+  const [modifierGroups, setModifierGroups] = useState([]);
+
+  const genKey = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   useEffect(() => {
     fetchProducts();
@@ -67,6 +72,8 @@ export default function ProductManagerScreen() {
     setCategory('');
     setDescription('');
     setImageUrl('');
+    setVariants([]);
+    setModifierGroups([]);
     setModalVisible(true);
   };
 
@@ -79,6 +86,20 @@ export default function ProductManagerScreen() {
     setCategory(item.category || '');
     setDescription(item.description || '');
     setImageUrl(item.imageUrl || '');
+    setVariants(
+      (item.variants || []).map((v) => ({
+        key: v.id || genKey(),
+        name: v.name || '',
+        extraPrice: formatRupiahInput(v.extraPrice),
+      }))
+    );
+    setModifierGroups(
+      (item.modifiers || []).map((m) => ({
+        key: m.id || genKey(),
+        name: m.name || '',
+        options: Array.isArray(m.options) ? m.options.map(String) : [''],
+      }))
+    );
     setModalVisible(true);
   };
 
@@ -107,6 +128,22 @@ export default function ProductManagerScreen() {
     try {
       const finalImageUrl = await uploadProductImage(imageUrl);
 
+      // Bangun data varian & modifier (only non-empty) — extraPrice diparsing ke angka baku
+      const variantsData = variants
+        .filter((v) => v.name.trim() !== '')
+        .map((v) => ({
+          id: v.key,
+          name: v.name.trim(),
+          extraPrice: parseRupiahInput(v.extraPrice),
+        }));
+      const modifiersData = modifierGroups
+        .filter((g) => g.name.trim() !== '' && g.options.some((o) => o.trim() !== ''))
+        .map((g) => ({
+          id: g.key,
+          name: g.name.trim(),
+          options: g.options.map((o) => o.trim()).filter(Boolean),
+        }));
+
       if (editingId) {
         await updateProduct(
           editingId,
@@ -116,7 +153,9 @@ export default function ProductManagerScreen() {
           finalImageUrl,
           category.trim(),
           description.trim(),
-          cost !== '' ? costValue : null
+          cost !== '' ? costValue : null,
+          variantsData,
+          modifiersData
         );
       } else {
         await addProduct(
@@ -126,7 +165,9 @@ export default function ProductManagerScreen() {
           finalImageUrl,
           category.trim(),
           description.trim(),
-          cost !== '' ? costValue : null
+          cost !== '' ? costValue : null,
+          variantsData,
+          modifiersData
         );
       }
 
@@ -172,7 +213,39 @@ export default function ProductManagerScreen() {
     setCategory('');
     setDescription('');
     setImageUrl('');
+    setVariants([]);
+    setModifierGroups([]);
   };
+
+  // ---- Helpers form dinamis Varian & Modifier ----
+  const addVariant = () =>
+    setVariants((prev) => [...prev, { key: genKey(), name: '', extraPrice: '' }]);
+  const updateVariant = (key, field, value) =>
+    setVariants((prev) => prev.map((v) => (v.key === key ? { ...v, [field]: value } : v)));
+  const removeVariant = (key) => setVariants((prev) => prev.filter((v) => v.key !== key));
+
+  const addModifierGroup = () =>
+    setModifierGroups((prev) => [...prev, { key: genKey(), name: '', options: [''] }]);
+  const updateModifierGroup = (key, field, value) =>
+    setModifierGroups((prev) => prev.map((g) => (g.key === key ? { ...g, [field]: value } : g)));
+  const addModifierOption = (key) =>
+    setModifierGroups((prev) =>
+      prev.map((g) => (g.key === key ? { ...g, options: [...g.options, ''] } : g))
+    );
+  const updateModifierOption = (key, index, value) =>
+    setModifierGroups((prev) =>
+      prev.map((g) =>
+        g.key === key ? { ...g, options: g.options.map((o, i) => (i === index ? value : o)) } : g
+      )
+    );
+  const removeModifierOption = (key, index) =>
+    setModifierGroups((prev) =>
+      prev.map((g) =>
+        g.key === key ? { ...g, options: g.options.filter((_, i) => i !== index) } : g
+      )
+    );
+  const removeModifierGroup = (key) =>
+    setModifierGroups((prev) => prev.filter((g) => g.key !== key));
 
   const filteredProducts = products.filter((p) => {
     const q = searchQuery.toLowerCase();
@@ -372,7 +445,7 @@ export default function ProductManagerScreen() {
         onRequestClose={() => !saving && setModalVisible(false)}
       >
         <View className="flex-1 justify-end bg-black/50">
-          <View className="bg-surface rounded-t-[28px] pt-5 pb-7 px-5">
+          <View className="bg-surface rounded-t-[28px] pt-5 pb-7 px-5 max-h-[92%]">
             <View className="w-10 h-1.5 rounded-full bg-hairline self-center mb-4" />
 
             <View className="flex-row items-center justify-between mb-4">
@@ -399,6 +472,11 @@ export default function ProductManagerScreen() {
             </View>
 
             {/* Preview Gambar */}
+            <ScrollView
+              className="flex-1"
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
             <View className="items-center mb-4">
               {previewUri ? (
                 <View className="rounded-2xl overflow-hidden border border-hairline">
@@ -486,6 +564,135 @@ export default function ProductManagerScreen() {
               value={imageUrl}
               onChangeText={setImageUrl}
             />
+
+            {/* === Varian (opsional) === */}
+            <View className="mt-2 mb-3">
+              <View className="flex-row items-center justify-between">
+                <Text className="text-xs font-bold text-ink-muted ml-1">
+                  Varian — Tambahan Harga
+                </Text>
+                <TouchableOpacity
+                  className="flex-row items-center bg-accent-soft px-2.5 py-1.5 rounded-xl"
+                  onPress={addVariant}
+                  activeOpacity={0.8}
+                >
+                  <MaterialIcons name="add" size={15} color={colors.accent} />
+                  <Text className="text-accent font-bold text-[11px] ml-1">Varian</Text>
+                </TouchableOpacity>
+              </View>
+              <Text className="text-[10px] font-medium text-ink-muted mt-1 mb-2 ml-1">
+                Contoh: Panas +Rp 0, Dingin +Rp 2.000. Kosongkan jika produk tanpa varian.
+              </Text>
+
+              {variants.map((v) => (
+                <View key={v.key} className="flex-row items-center gap-2 mb-2">
+                  <TextInput
+                    className={`${inputClass} flex-1 mb-0`}
+                    placeholder="Nama varian (cth. Dingin)"
+                    placeholderTextColor={colors['ink-muted']}
+                    value={v.name}
+                    onChangeText={(text) => updateVariant(v.key, 'name', text)}
+                  />
+                  <TextInput
+                    className={`${inputClass} mb-0 w-[110px] font-medium`}
+                    placeholder="+ Rp"
+                    placeholderTextColor={colors['ink-muted']}
+                    keyboardType="numeric"
+                    value={v.extraPrice}
+                    onChangeText={(text) =>
+                      updateVariant(v.key, 'extraPrice', formatRupiahInput(text))
+                    }
+                  />
+                  <TouchableOpacity
+                    className="w-9 h-9 rounded-xl bg-danger-soft items-center justify-center"
+                    onPress={() => removeVariant(v.key)}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="close" size={17} color={colors.danger} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+
+            {/* === Modifier / Catatan Tambahan (opsional) === */}
+            <View className="mb-4">
+              <View className="flex-row items-center justify-between">
+                <Text className="text-xs font-bold text-ink-muted ml-1">Modifier</Text>
+                <TouchableOpacity
+                  className="flex-row items-center bg-accent-soft px-2.5 py-1.5 rounded-xl"
+                  onPress={addModifierGroup}
+                  activeOpacity={0.8}
+                >
+                  <MaterialIcons name="add" size={15} color={colors.accent} />
+                  <Text className="text-accent font-bold text-[11px] ml-1">Modifier</Text>
+                </TouchableOpacity>
+              </View>
+              <Text className="text-[10px] font-medium text-ink-muted mt-1 mb-2 ml-1">
+                Contoh: Level Pedas → Normal / Pedas / Pedas Banget.
+              </Text>
+
+              {modifierGroups.map((g) => (
+                <View
+                  key={g.key}
+                  className="mb-3 p-3 rounded-2xl bg-bg border border-hairline"
+                >
+                  <View className="flex-row items-center">
+                    <TextInput
+                      className={`${inputClass} flex-1 mb-0`}
+                      placeholder="Nama modifier (cth. Level Pedas)"
+                      placeholderTextColor={colors['ink-muted']}
+                      value={g.name}
+                      onChangeText={(text) => updateModifierGroup(g.key, 'name', text)}
+                    />
+                    <TouchableOpacity
+                      className="w-9 h-9 rounded-xl bg-danger-soft items-center justify-center ml-2"
+                      onPress={() => removeModifierGroup(g.key)}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialIcons name="delete-outline" size={17} color={colors.danger} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {g.options.map((option, optionIndex) => (
+                    <View key={`${g.key}_opt_${optionIndex}`} className="flex-row items-center mt-2">
+                      <Text className="text-[11px] font-bold text-ink-muted w-9">
+                        #{optionIndex + 1}
+                      </Text>
+                      <TextInput
+                        className={`${inputClass} flex-1 mb-0`}
+                        placeholder="Nama opsi (cth. Pedas Banget)"
+                        placeholderTextColor={colors['ink-muted']}
+                        value={option}
+                        onChangeText={(text) =>
+                          updateModifierOption(g.key, optionIndex, text)
+                        }
+                      />
+                      {g.options.length > 1 && (
+                        <TouchableOpacity
+                          className="w-8 h-8 rounded-xl bg-danger-soft items-center justify-center ml-2"
+                          onPress={() => removeModifierOption(g.key, optionIndex)}
+                          activeOpacity={0.8}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          <MaterialIcons name="close" size={15} color={colors.danger} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))}
+
+                  <TouchableOpacity
+                    className="flex-row items-center justify-center bg-surface border border-hairline rounded-xl py-2 mt-2"
+                    onPress={() => addModifierOption(g.key)}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="add" size={15} color={colors.accent} />
+                    <Text className="text-accent font-bold text-[11px] ml-1">Tambah Opsi</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+
+            </ScrollView>
 
             <View className="flex-row gap-2.5 mt-1">
               <TouchableOpacity

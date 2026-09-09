@@ -62,14 +62,16 @@ src/
                                # ProductManagerScreen (modal), PaymentScreen,
                                # QRISSettingScreen, TransactionDetailScreen
   components/FilterBar.js      # Bar filter periode (Hari Ini/Bulan/Tahun/Semua/Tanggal)
+  components/ProductOptionModal.js # Modal pilih varian/modifier/catatan saat kasir tap produk
   services/
     productService.js          # CRUD produk
     transactionService.js      # CRUD transaksi + statistik dashboard + delete batch
     paymentService.js
-  store/useCartStore.js        # Zustand store keranjang
+  store/useCartStore.js        # Zustand store keranjang (unique cartId per varian/catatan)
   utils/
     currency.js                # Format Rupiah (input live + parse + normalisasi)
     exportExcel.js             # Export transaksi ke .xlsx (web & native)
+    cartLabel.js               # Label varian/modifier/catatan untuk badge & struk
 ```
 
 ## Format Rupiah (src/utils/currency.js)
@@ -82,8 +84,10 @@ src/
 
 ## Skema Data Firestore
 
-- `products` : `{ name, price, cost (harga modal), stock, imageUrl, category, description, createdAt }` — `cost` opsional; jika kosong default = harga jual, dipakai hitung laba.
-- `transactions` : berisi `items` (array keranjang, tiap item menyimpan snapshot `cost` saat checkout), `totalAmount`, `paymentMethod` (`CASH`/`QRIS`), `change`, `paymentAmount`, `cashReceived`, `createdAt` (serverTimestamp), `formattedTime` (string, dihitung saat insert).
+- `products` : `{ name, price, cost (harga modal), stock, imageUrl, category, description, createdAt }` — `cost` opsional; jika kosong default = harga jual, dipakai hitung laba. `variants` & `modifiers` opsional (produk sembako/ritel boleh tanpa keduanya):
+  - `variants`: `[{ id, name, extraPrice }]` — varian dengan tambahan harga, cth. Panas +Rp 0, Dingin +Rp 2.000.
+  - `modifiers`: `[{ id, name, options: string[] }]` — grup pilihan catatan, cth. Level Pedas ["Normal","Pedas","Pedas Banget"]. Saat save, `extraPrice` diparsing dulu dengan `parseRupiahInput`.
+- `transactions` : berisi `items` (array keranjang, tiap item menyimpan snapshot `cost`, `variant`, `modifiers`, `customNote`, `unitPrice` saat checkout), `totalAmount`, `paymentMethod` (`CASH`/`QRIS`), `change`, `paymentAmount`, `cashReceived`, `createdAt` (serverTimestamp), `formattedTime` (string, dihitung saat insert).
 
 PENTING: Dokumen produk wajib punya stok yang cukup — `createTransaction` mengurangi stok produkk secara atomis lewat `writeBatch` + `increment(-qty)`.
 
@@ -102,9 +106,21 @@ PENTING: Dokumen produk wajib punya stok yang cukup — `createTransaction` meng
 ## Detail per Screen (agar konsisten saat dikembangkan)
 
 ### HomeScreen
-- Katalog produk 2 kolom + keranjang (state lokal, di-reset tiap `navigation focus`).
+- Katalog produk 2 kolom + keranjang (Zustand `useCartStore`, di-reset tiap `navigation focus` — `clearCart`).
 - Header + search bar, navigasi horizontal (chips), Floating checkout button muncul hanya jika `cart.length > 0`.
 - `getDocId(item)` = `firestoreDocId || id || docId`.
+- Klik produk: jika punya `variants`/`modifiers` → buka `ProductOptionModal`; jika sembako/ritel → langsung `addToCart` tanpa modal. Di kartu produk tampil badge opsi item ke-1 yang sudah dikeranjangkan.
+
+### ProductOptionModal (src/components/ProductOptionModal.js)
+- Modal bottom sheet pilih 1 varian, checklist pilihan per modifier, catatan manual (`customNote`), dan stepper jumlah.
+- Harga real-time: `(hargaDasar + extraPriceVarian) * quantity`. Konfirmasi memanggil `addToCart(product, { variant, modifiers, customNote, quantity })`.
+- Default pilihan: varian pertama (jika ada), opsi pertama tiap modifier.
+
+### useCartStore (src/store/useCartStore.js)
+- `addToCart(product, options)` membangun `cartId` unik dari `productDocId + variantId + modifiers.join() + customNote`. Kombinasi sama → qty bertambah; beda varian/catatan → item terpisah.
+- Item menyimpan snapshot `variant`, `modifiers`, `customNote`, `unitPrice` (harga akhir per unit), `cost`, `subtotal`, `stock` (limit qty).
+- Aksi: `addToCart`, `increaseQty`, `decreaseQty`, `removeFromCart`, `clearCart`, `getTotalPrice`. `addToCart`/`increaseQty` me-return `{ ok, reason: 'STOCK_LIMIT' }` bila melewati stok.
+- Label badge/struk dibuat via `src/utils/cartLabel.js` (`getItemOptionsLabel`).
 
 ### DashboardScreen
 - Filter: `FilterBar`. Stats dari `getDashboardStats(filter, customDate)`.
@@ -118,7 +134,8 @@ PENTING: Dokumen produk wajib punya stok yang cukup — `createTransaction` meng
 
 ### ProductManagerScreen
 - Daftar produk + statistik mini (Total Produk, Total Stok, Stok Menipis).
-- Form tambah/edit dalam **Modal bottom sheet** (native `Modal` animationType slide) — pola yang dipilih agar list tetap rapi.
+- Form tambah/edit dalam **Modal bottom sheet** (native `Modal` animationType slide) — pola yang dipilih agar list tetap rapi (badan form di dalam `ScrollView`, header/tombol tetap di bawah).
+- Seksi dinamis **Varian** (nama + tambahan harga `+Rp`, diformat `formatRupiahInput`, diparsing `parseRupiahInput` saat save) dan **Modifier** (nama grup + daftar opsi; tambah/hapus baris). Produk sembako/ritel cukup kosongkan seksi ini.
 - Validasi wajib: nama, harga jual ≥ 0, stok ≥ 0; **Harga Modal (Rp)** opsional (default = harga jual jika kosong). Konfirmasi hapus sebelum dieksekusi.
 
 ## Export Excel (src/utils/exportExcel.js)

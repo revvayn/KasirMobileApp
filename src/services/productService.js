@@ -31,7 +31,7 @@ export const getProducts = async () => {
 };
 
 // Tambah produk baru
-export const addProduct = async (name, price, stock, imageUrl, category = "", description = "", cost = null) => {
+export const addProduct = async (name, price, stock, imageUrl, category = "", description = "", cost = null, variants = [], modifiers = []) => {
   try {
     await addDoc(productsCollection, {
       name,
@@ -41,6 +41,8 @@ export const addProduct = async (name, price, stock, imageUrl, category = "", de
       imageUrl: imageUrl || "https://via.placeholder.com/150",
       category,
       description,
+      variants: sanitizeVariants(variants),
+      modifiers: sanitizeModifiers(modifiers),
       createdAt: serverTimestamp(),
     });
   } catch (error) {
@@ -49,7 +51,7 @@ export const addProduct = async (name, price, stock, imageUrl, category = "", de
 };
 
 // Update produk
-export const updateProduct = async (id, name, price, stock, imageUrl, category = "", description = "", cost = null) => {
+export const updateProduct = async (id, name, price, stock, imageUrl, category = "", description = "", cost = null, variants = [], modifiers = []) => {
   try {
     const productDoc = doc(db, "products", id);
     await updateDoc(productDoc, {
@@ -60,11 +62,39 @@ export const updateProduct = async (id, name, price, stock, imageUrl, category =
       imageUrl: imageUrl || "https://via.placeholder.com/150",
       category,
       description,
+      variants: sanitizeVariants(variants),
+      modifiers: sanitizeModifiers(modifiers),
     });
   } catch (error) {
     console.error("Gagal memperbarui produk:", error);
   }
 };
+
+// Bersihkan daftar varian: buang entri tanpa nama, harga modal dalam angka baku.
+export const sanitizeVariants = (variants) =>
+  (Array.isArray(variants) ? variants : [])
+    .filter((v) => v && v.name && String(v.name).trim() !== "")
+    .map((v) => ({
+      id: String(v.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
+      name: String(v.name).trim(),
+      extraPrice: Number(v.extraPrice) || 0,
+    }));
+
+// Bersihkan daftar modifier: buang grup tanpa nama & hapus opsi kosong.
+export const sanitizeModifiers = (modifiers) =>
+  (Array.isArray(modifiers) ? modifiers : [])
+    .filter((m) => m && m.name && String(m.name).trim() !== "")
+    .map((m) => {
+      const options = (Array.isArray(m.options) ? m.options : [])
+        .map((o) => String(o || "").trim())
+        .filter(Boolean);
+      return {
+        id: String(m.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
+        name: String(m.name).trim(),
+        options,
+      };
+    })
+    .filter((m) => m.options.length > 0);
 
 // Hapus produk
 export const deleteProduct = async (id) => {
