@@ -106,14 +106,13 @@ PENTING: Dokumen produk wajib punya stok yang cukup — `createTransaction` meng
 ## Detail per Screen (agar konsisten saat dikembangkan)
 
 ### HomeScreen
-- Katalog produk 2 kolom + keranjang (Zustand `useCartStore`, di-reset tiap `navigation focus` — `clearCart`).
-- Header + search bar, navigasi horizontal (chips), Floating checkout button muncul hanya jika `cart.length > 0`.
-- `getDocId(item)` = `firestoreDocId || id || docId`.
-- Klik produk: jika punya `variants`/`modifiers` → buka `ProductOptionModal`; jika sembako/ritel → langsung `addToCart` tanpa modal. Di kartu produk tampil badge opsi item ke-1 yang sudah dikeranjangkan.
+- Katalog produk **2 kolom dikelompokkan per kategori** (SectionList; baris 2 kolom dirakit manual karena SectionList/RNW tidak mendukung `numColumns`). Header + search bar. Keranjang (Zustand `useCartStore`, persistence `kasir-cart`). `getDocId(item)` = `firestoreDocId || id || docId`.
+- Klik produk: jika punya `variants`/`modifiers` → buka `ProductOptionModal` (mode **batch**); jika sembako/ritel → langsung `addToCart` tanpa modal. Di kartu produk tampil badge opsi item ke-1 yang sudah dikeranjangkan (label bisa diketuk untuk membuka modal lagi).
 
 ### ProductOptionModal (src/components/ProductOptionModal.js)
-- Modal bottom sheet pilih 1 varian, checklist pilihan per modifier, catatan manual (`customNote`), dan stepper jumlah.
-- Harga real-time: `(hargaDasar + extraPriceVarian) * quantity`. Konfirmasi memanggil `addToCart(product, { variant, modifiers, customNote, quantity })`.
+- Modal bottom sheet **mode batch**: 1 varian, checklist pilihan per modifier, catatan manual, stepper jumlah — lalu tombol **"Tambah ke Daftar"** memasukkan pilihan × qty ke daftar pesanan (kombinasi identik digabung). Lane berbeda varian/opsi/catatan bisa ditambah bergantian **tanpa keluar modal** (cth. 2 nasi goreng pedas + 1 normal). Tombol **"Masukkan N Item ke Keranjang"** meng-commit semua ke `addToCart`.
+- Baca prop `existingCartQty` (jumlah produk ini di keranjang) untuk membatasi stok: `remainingStock = product.stock - existingCartQty - batchQty`; commit dibatalkan bila `stockExceeded`.
+- Harga: `(hargaDasar + extraPriceVarian) * quantity` dengan `calcUnitPrice` (diskon produk dilekatkan). `onConfirm(line)` me-return hasil `addToCart`; jika `!ok` (STOCK_LIMIT) modal tidak ditutup.
 - Default pilihan: varian pertama (jika ada), opsi pertama tiap modifier.
 
 ### useCartStore (src/store/useCartStore.js)
@@ -138,23 +137,29 @@ PENTING: Dokumen produk wajib punya stok yang cukup — `createTransaction` meng
 - Seksi dinamis **Varian** (nama + tambahan harga `+Rp`, diformat `formatRupiahInput`, diparsing `parseRupiahInput` saat save) dan **Modifier** (nama grup + daftar opsi; tambah/hapus baris). Produk sembako/ritel cukup kosongkan seksi ini.
 - Validasi wajib: nama, harga jual ≥ 0, stok ≥ 0; **Harga Modal (Rp)** opsional (default = harga jual jika kosong). Konfirmasi hapus sebelum dieksekusi.
 - Field **Stok Minimum** (`minStock`, default 5): dipakai stat "Stok Menipis" & badge "Menipis"/"Habis" di list. `addProduct`/`updateProduct` menerima `minStock`.
+- Field **Diskon Produk** (`discountPercent`, 0–100 dalam kelipatan 5): dipilih lewat **ScrollView horizontal** ("geser ke samping 0%–100%"). Diskon MELEKAT pada produk dan otomatis dipakai saat kasir menjual; list produk & HomeScreen menampilkan badge `-X%`. `addProduct`/`updateProduct` menerima `discountPercent`.
 
 ### Auth & Role (baru sejak sesi ini)
 - Firebase **Email/Password** (`src/config/firebase.js` export `auth`). `App.js` subscribe `onAuthStateChanged` → restore sesi ke `useAuthStore`.
 - `AppNavigator` **gate login**: jika `!user` render `LoginScreen` (di luar stack), jika `loading` render `null`.
-- Role disimpan di doc `users/{uid}` → `role: 'admin' | 'kasir'` (`ensureUserRole`). **Bootstrap**: user PERTAMA yang terdaftar otomatis Admin (via `registerUser` di LoginScreen); berikutnya jadi kasir. Akses menu admin di `HomeScreen.navItems` difilter `isAdmin`.
-- Rules wajib deploy: `firestore.rules` di root. Baca → semua yang login; tulis `users` → pemilik/`isAdmin()`; tulis `settings` → admin. Nonaktifkan pendaftaran publik di `users` setelah bootstrap (lihat README).
+- Role disimpan di doc `users/{uid}` → `role: 'admin' | 'kasir'` (`ensureUserRole`). **Bootstrap**: user PERTAMA yang terdaftar otomatis Admin (via `registerUser` di LoginScreen); berikutnya jadi kasir.
+- **Menu per role (HomeScreen.navItems)**: `admin` melihat Semua menu (Dashboard, Kelola Produk, Riwayat, QRIS, Rekap, Manajemen Akun). `kasir` HANYA **katalog produk** + **Rekap** (menu admin `adminOnly: true` disembunyikan, difilter `isAdmin`). Screen lain tetap di navigator tapi tak punya pintu untuk kasir.
+- Rules wajib deploy: `firestore.rules` di root. Baca → semua yang login; tulis `users` → pemilik/`isAdmin()`; tulis `settings` → admin; update `products` → admin **atau hanya field `stock`** (kasir, dipakai `processPayment`); `transactions`/`counters` → siapa saja yang login. Nonaktifkan pendaftaran publik di `users` setelah bootstrap (lihat README).
 
-### Diskon (item & invoice)
-- Diskon per item: `discountPercent` (0/5/10/15/20/25/50) di `ProductOptionModal` & `CartItemsSheet`. `calcUnitPrice = round((basePrice + extraPrice) * (1 - pct/100))`. Saat merge combo qty bertambah, diskon memakai nilai terbaru. Item menyimpan `subtotal` net.
-- Diskon invoice: `discountPercent` (0/5/10/15/20/25) di `PaymentScreen`. `subtotal` = jumlah net item; `discountAmount` = potongan invoice; `totalAmount` = `subtotal - discountAmount`. Struk/Excel menampilkan Diskons (item & invoice dijumlahkan di `getItemsDiscountAmount`).
+### Diskon (milik PRODUCT, bukan keranjang)
+- Admin set diskon per produk di **ProductManagerScreen** (`discountPercent` 0–100 via `@react-native-community/slider`, step 5). Diskon tersimpan di dokumen produk.
+- `useCartStore.addToCart` membaca `product.discountPercent` sendiri — kasir TIDAK bisa memilih diskon di `ProductOptionModal`/`CartItemsSheet` (UI diskon per-item di keranjang sudah DIHAPUS).
+- `calcUnitPrice = round((basePrice + extraPrice) * (1 - pct/100))` (export dari useCartStore). Item keranjang menyimpan snapshot `discountPercent` (dari produk) agar struk/Excel/receipt tetap valid.
+- **TIDAK ada diskon invoice** (UI di `PaymentScreen` sudah DIHAPUS). `totalAmount` = total net item terdiskon. `Transaction.discountPercent/discountAmount` = 0. Struk/Excel menampilkan diskon item dari snapshot `items[].discountPercent` (`getItemsDiscountAmount`).
 
 ### Nomor Invoice & Reprint
 - Format `INV-YYYYMMDD-NNNN` dari `runTransaction` pada `counters/invoice-YYYYMMDD` di `processPayment`.
 - `utils/receiptHtml.js`: `buildReceiptHtml(transaction)` (html struk, font `Courier New`) + `getInvoiceNumber(transaction)` + `getItemsDiscountAmount(items)`. Dipakai `TransactionDetailScreen` (prints & share PDF), `HistoryScreen` (reprint per baris, tombol `print` hijau-accent), `ClosingScreen`.
 
 ### ClosingScreen (Rekap Shift/Harian)
-- Tombol di `DashboardScreen` header → navigasi `Closing`. Data: transaksi hari ini (filter `'today'`), ringkasan total/tunai/QRIS/laba, breakdown **per kategori** (`item.category`) & **per kasir** (`transaction.cashier.email`). Tombol share/cetak PDF via `Print.printToFileAsync` + `Sharing.shareAsync`.
+- Tombol di `DashboardScreen` header → navigasi `Closing`. FILTER: **tanggal** (default hari ini) + **user** untuk admin (chip "Semua User"/pilih kasir dari `listUsers`); kasir terkunci ke akunnya sendiri (`useAuthStore.user.uid`).
+- Ringkasan: total/tunai/QRIS/laba, breakdown **per kategori** (`item.category`) & **per kasir** (`transaction.cashier.uid`). `processPayment` menyimpan `cashier: {uid,email,displayName}` dari `options.cashier` (dikirim PaymentScreen dari `useAuthStore`).
+- Tombol share/cetak PDF via `Print.printToFileAsync` + `Sharing.shareAsync`. `buildClosingHtml` menyertakan label user & tanggal.
 
 ### useAuthStore & Cart Persist
 - `useAuthStore`: `user`, `role`, `loading`, `refreshRole`, `logout` (persist ke AsyncStorage key `"kasir-auth"`).

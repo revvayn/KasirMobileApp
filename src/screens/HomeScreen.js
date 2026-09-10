@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
-  FlatList,
+  SectionList,
   Image,
   TouchableOpacity,
   Alert,
@@ -34,7 +34,6 @@ export default function HomeScreen({ navigation }) {
   const increaseQty = useCartStore((s) => s.increaseQty);
   const decreaseQty = useCartStore((s) => s.decreaseQty);
   const removeFromCart = useCartStore((s) => s.removeFromCart);
-  const setItemDiscount = useCartStore((s) => s.setItemDiscount);
   const clearCart = useCartStore((s) => s.clearCart);
 
   useEffect(() => {
@@ -72,7 +71,10 @@ export default function HomeScreen({ navigation }) {
   const showStockLimitAlert = () =>
     showAlert('Batas Stok', 'Jumlah melebihi stok yang tersedia.');
 
-  // Klik produk: langsung masuk keranjang (sembako) atau buka modal opsi (kuliner)
+  // Klik produk:
+  // - Punya varian/opsi → buka modal pilihan (mode batch: bisa tambah
+  //   beberapa kombinasi berbeda sekaligus tanpa keluar modal).
+  // - Tanpa opsi (sembako) → langsung masuk keranjang.
   const handleProductPress = (product) => {
     const stockLimit = Number(product.stock || 0);
     if (stockLimit <= 0) {
@@ -90,10 +92,10 @@ export default function HomeScreen({ navigation }) {
   };
 
   const handleConfirmOptions = (options) => {
-    if (!selectedProduct) return;
+    if (!selectedProduct) return { ok: false };
     const result = addToCart(selectedProduct, options);
-    setSelectedProduct(null);
     if (!result.ok && result.reason === 'STOCK_LIMIT') showStockLimitAlert();
+    return result;
   };
 
   // Tombol + pada kartu: tambah kombinasi varian yang sama seperti item di keranjang
@@ -102,7 +104,6 @@ export default function HomeScreen({ navigation }) {
       variant: cartItem.variant,
       modifiers: cartItem.modifiers,
       customNote: cartItem.customNote,
-      discountPercent: cartItem.discountPercent || 0,
     });
     if (!result.ok && result.reason === 'STOCK_LIMIT') showStockLimitAlert();
   };
@@ -139,6 +140,14 @@ export default function HomeScreen({ navigation }) {
       ? cart.filter((c) => getDocId(c) === cartSheetProductId)
       : [];
 
+  // Jumlah item produk ini yang sudah ada di keranjang (untuk cek stok di modal batch)
+  const selectedProductCartQty =
+    selectedProduct != null
+      ? cart
+          .filter((c) => getDocId(c) === getDocId(selectedProduct))
+          .reduce((sum, c) => sum + (Number(c.qty) || 0), 0)
+      : 0;
+
   const calculateTotal = () =>
     cart.reduce((sum, item) => sum + (Number(item.subtotal) || 0), 0);
 
@@ -154,19 +163,168 @@ export default function HomeScreen({ navigation }) {
 
   const totalItemsInCart = cart.reduce((sum, item) => sum + item.qty, 0);
 
-  const filteredProducts = products.filter((p) => {
+  const filteredProducts = useMemo(() => {
     const q = searchQuery.toLowerCase();
-    const name = (p.name || p.nama || '').toLowerCase();
-    return name.includes(q);
-  });
+    return products.filter((p) => {
+      const name = (p.name || p.nama || '').toLowerCase();
+      return name.includes(q);
+    });
+  }, [products, searchQuery]);
+
+  // Kelompokkan produk berdasarkan kategori
+  const groupedSections = useMemo(() => {
+    const map = {};
+    filteredProducts.forEach((p) => {
+      const cat = (p.category || '').trim() || 'Lainnya';
+      (map[cat] = map[cat] || []).push(p);
+    });
+    return Object.keys(map)
+      .sort((a, b) => a.localeCompare(b, 'id'))
+      .map((cat) => ({ key: cat, title: cat, data: map[cat] }));
+  }, [filteredProducts]);
+
+  // Kartu produk (2 kolom). SectionList bawaan tidak mendukung `numColumns`
+  // baik di native maupun react-native-web, jadi baris 2 kolom dirakit manual.
+  const renderProductCard = (item) => {
+    const itemId = getDocId(item);
+    const inCartItems = cart.filter((c) => getDocId(c) === itemId);
+    const cartQty = inCartItems.reduce((sum, c) => sum + c.qty, 0);
+    const firstCartItem = inCartItems[0];
+    const outOfStock = Number(item.stock || 0) <= 0;
+    const minStock = Number(item.minStock ?? 5);
+    const lowStock = !outOfStock && Number(item.stock) <= minStock;
+
+    return (
+      <TouchableOpacity
+        className={`basis-[48%] bg-surface rounded-[20px] overflow-hidden border-[1.5px] ${
+          cartQty > 0 ? 'border-accent shadow-md' : 'border-hairline'
+        }`}
+        onPress={() => handleProductPress(item)}
+        activeOpacity={0.85}
+        disabled={outOfStock}
+      >
+        <View className="relative">
+          <Image
+            source={{ uri: item.imageUrl || 'https://via.placeholder.com/150' }}
+            className="w-full h-[110px]"
+            resizeMode="cover"
+          />
+          {Number(item.discountPercent || 0) > 0 && (
+            <View className="absolute top-2 left-2 bg-danger px-2 py-0.5 rounded-full">
+              <Text className="text-white font-extrabold text-[11px]">
+                -{item.discountPercent}%
+              </Text>
+            </View>
+          )}
+          {outOfStock && (
+            <View className="absolute inset-0 bg-black/50 items-center justify-center">
+              <View className="bg-white/20 px-3 py-1 rounded-full">
+                <Text className="text-white font-extrabold text-[11px] tracking-wide">Stok Habis</Text>
+              </View>
+            </View>
+          )}
+{!outOfStock && (
+                  <View
+                    className={`absolute top-2 right-2 px-2 py-0.5 rounded-full ${
+                      lowStock ? 'bg-danger-soft' : 'bg-success-soft'
+                    }`}
+                  >
+                    <Text className={`text-[10px] font-bold ${lowStock ? 'text-danger' : 'text-success'}`}>
+                      {lowStock ? `Menipis (${item.stock})` : `Stok ${item.stock}`}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+        <View className="p-3">
+          <Text className="text-[13px] font-bold text-ink mb-1" numberOfLines={1}>
+            {item.name || item.nama}
+          </Text>
+          <View className="flex-row items-baseline">
+            <Text className="text-[15px] font-extrabold text-accent">
+              Rp {(Number(item.price || 0) * (1 - (Number(item.discountPercent) || 0) / 100)).toLocaleString('id-ID')}
+            </Text>
+            {Number(item.discountPercent || 0) > 0 && (
+              <Text className="text-[10px] font-medium text-ink-muted ml-1.5 line-through">
+                Rp {Number(item.price || 0).toLocaleString('id-ID')}
+              </Text>
+            )}
+          </View>
+
+          {cartQty > 0 &&
+            (inCartItems.length === 1 && firstCartItem ? (
+              <>
+                <TouchableOpacity
+                  onPress={() => hasOptions(item) && setSelectedProduct(item)}
+                  disabled={!hasOptions(item)}
+                  activeOpacity={0.7}
+                >
+                  <Text className="text-[11px] font-medium text-ink-muted mt-1" numberOfLines={1}>
+                    {getItemOptionsLabel(firstCartItem)}
+                    {Number(firstCartItem.discountPercent || 0) > 0
+                      ? ` · diskon ${firstCartItem.discountPercent}%`
+                      : ''}
+                  </Text>
+                </TouchableOpacity>
+                <View className="flex-row items-center justify-between mt-2 bg-bg rounded-xl px-1.5 py-1">
+                  <TouchableOpacity
+                    className="w-7 h-7 rounded-lg bg-danger items-center justify-center"
+                    onPress={() => decreaseQty(firstCartItem.cartId)}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <MaterialIcons name="remove" size={16} color="#fff" />
+                  </TouchableOpacity>
+                  <Text className="font-extrabold text-ink text-sm">{cartQty}</Text>
+                  <TouchableOpacity
+                    className="w-7 h-7 rounded-lg bg-primary items-center justify-center"
+                    onPress={() => handlePlus(firstCartItem)}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <MaterialIcons name="add" size={16} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <View className="mt-2 flex-row items-center justify-between bg-bg rounded-xl px-2.5 py-1.5">
+                <TouchableOpacity
+                  className="flex-1"
+                  onPress={() => hasOptions(item) && setSelectedProduct(item)}
+                  disabled={!hasOptions(item)}
+                  activeOpacity={0.7}
+                >
+                  <Text className="text-[11px] font-semibold text-ink" numberOfLines={1}>
+                    {cartQty} item · {getItemOptionsLabel(firstCartItem)}
+                    {inCartItems.length > 1 ? ` +${inCartItems.length - 1} varian` : ''}
+                  </Text>
+                </TouchableOpacity>
+                <View className="flex-row items-center ml-2">
+                  <Text className="font-extrabold text-accent text-[13px] mr-2">{cartQty}×</Text>
+                  <TouchableOpacity
+                    className="w-7 h-7 rounded-lg bg-accent items-center justify-center"
+                    onPress={() => openCartSheet(item)}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <MaterialIcons name="tune" size={16} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const isAdmin = role === 'admin';
 
+  // Menu (chips) digate oleh role:
+  // - Admin: semua menu.
+  // - Kasir: HANYA katalog produk + rekap miliknya (Closing). Dashboard/Riwayat/Produk/QRIS/Akun
+  //   disembunyikan.
   const navItems = [
-    { key: 'Dashboard', label: 'Dashboard', icon: 'bar-chart', adminOnly: false },
+    { key: 'Dashboard', label: 'Dashboard', icon: 'bar-chart', adminOnly: true },
     { key: 'ProductManager', label: 'Produk', icon: 'inventory-2', adminOnly: true },
-    { key: 'History', label: 'Riwayat', icon: 'history', adminOnly: false },
-    { key: 'QRISSetting', label: 'QRIS', icon: 'qr-code', adminOnly: false },
+    { key: 'History', label: 'Riwayat', icon: 'history', adminOnly: true },
+    { key: 'QRISSetting', label: 'QRIS', icon: 'qr-code', adminOnly: true },
     { key: 'Closing', label: 'Rekap', icon: 'fact-check', adminOnly: false },
     { key: 'UserManager', label: 'Akun', icon: 'people', adminOnly: true },
   ]
@@ -233,113 +391,28 @@ export default function HomeScreen({ navigation }) {
         </ScrollView>
       </View>
 
-      {/* Grid Produk */}
-      <FlatList
-        data={filteredProducts}
-        keyExtractor={(item, index) => String(getDocId(item) || index)}
-        numColumns={2}
-        columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 12 }}
+      {/* Grid Produk — dikelompokkan per kategori (baris 2 kolom manual) */}
+      <SectionList
+        sections={groupedSections}
+        keyExtractor={(item) => String(getDocId(item))}
+        stickySectionHeadersEnabled={false}
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => {
-          const itemId = getDocId(item);
-          const inCartItems = cart.filter((c) => getDocId(c) === itemId);
-          const cartQty = inCartItems.reduce((sum, c) => sum + c.qty, 0);
-          const firstCartItem = inCartItems[0];
-          const outOfStock = Number(item.stock || 0) <= 0;
-          const minStock = Number(item.minStock ?? 5);
-          const lowStock = !outOfStock && Number(item.stock) <= minStock;
-
+        renderSectionHeader={({ section }) => (
+          <View className="px-5 pb-2.5 pt-3 bg-bg">
+            <Text className="text-[15px] font-extrabold text-ink -tracking-tight">{section.title}</Text>
+            <Text className="text-[10px] font-medium text-ink-muted">{section.data.length} produk</Text>
+          </View>
+        )}
+        renderItem={({ index, section }) => {
+          if (index % 2 !== 0) return null;
+          const firstItem = section.data[index];
+          const secondItem = section.data[index + 1];
           return (
-            <TouchableOpacity
-              className={`basis-[48%] bg-surface rounded-[20px] overflow-hidden border-[1.5px] ${
-                cartQty > 0 ? 'border-accent shadow-md' : 'border-hairline'
-              }`}
-              onPress={() => handleProductPress(item)}
-              activeOpacity={0.85}
-              disabled={outOfStock}
-            >
-              <View className="relative">
-                <Image
-                  source={{ uri: item.imageUrl || 'https://via.placeholder.com/150' }}
-                  className="w-full h-[110px]"
-                  resizeMode="cover"
-                />
-                {outOfStock && (
-                  <View className="absolute inset-0 bg-black/50 items-center justify-center">
-                    <View className="bg-white/20 px-3 py-1 rounded-full">
-                      <Text className="text-white font-extrabold text-[11px] tracking-wide">Stok Habis</Text>
-                    </View>
-                  </View>
-                )}
-                {!outOfStock && (
-                  <View
-                    className={`absolute top-2 right-2 px-2 py-0.5 rounded-full ${
-                      lowStock ? 'bg-danger-soft' : 'bg-success-soft'
-                    }`}
-                  >
-                    <Text className={`text-[10px] font-bold ${lowStock ? 'text-danger' : 'text-success'}`}>
-                      {lowStock ? `Menipis (${item.stock})` : `Stok ${item.stock}`}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              <View className="p-3">
-                <Text className="text-[13px] font-bold text-ink mb-1" numberOfLines={1}>
-                  {item.name || item.nama}
-                </Text>
-                <Text className="text-[15px] font-extrabold text-accent">
-                  Rp {Number(item.price || 0).toLocaleString('id-ID')}
-                </Text>
-
-                {cartQty > 0 &&
-                  (inCartItems.length === 1 && firstCartItem ? (
-                    <>
-                      <Text className="text-[11px] font-medium text-ink-muted mt-1" numberOfLines={1}>
-                        {getItemOptionsLabel(firstCartItem)}
-                        {Number(firstCartItem.discountPercent || 0) > 0
-                          ? ` · diskon ${firstCartItem.discountPercent}%`
-                          : ''}
-                      </Text>
-                      <View className="flex-row items-center justify-between mt-2 bg-bg rounded-xl px-1.5 py-1">
-                        <TouchableOpacity
-                          className="w-7 h-7 rounded-lg bg-danger items-center justify-center"
-                          onPress={() => decreaseQty(firstCartItem.cartId)}
-                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        >
-                          <MaterialIcons name="remove" size={16} color="#fff" />
-                        </TouchableOpacity>
-                        <Text className="font-extrabold text-ink text-sm">{cartQty}</Text>
-                        <TouchableOpacity
-                          className="w-7 h-7 rounded-lg bg-primary items-center justify-center"
-                          onPress={() => handlePlus(firstCartItem)}
-                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        >
-                          <MaterialIcons name="add" size={16} color="#fff" />
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  ) : (
-                    <View className="mt-2 flex-row items-center justify-between bg-bg rounded-xl px-2.5 py-1.5">
-                      <Text className="text-[11px] font-semibold text-ink flex-1" numberOfLines={1}>
-                        {cartQty} item · {getItemOptionsLabel(firstCartItem)}
-                        {inCartItems.length > 1 ? ` +${inCartItems.length - 1} varian` : ''}
-                      </Text>
-                      <View className="flex-row items-center">
-                        <Text className="font-extrabold text-accent text-[13px] mr-2">{cartQty}×</Text>
-                        <TouchableOpacity
-                          className="w-7 h-7 rounded-lg bg-accent items-center justify-center"
-                          onPress={() => openCartSheet(item)}
-                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        >
-                          <MaterialIcons name="tune" size={16} color="#fff" />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))}
-              </View>
-            </TouchableOpacity>
+            <View className="flex-row justify-between px-5 mb-3">
+              {renderProductCard(firstItem)}
+              {secondItem ? renderProductCard(secondItem) : <View className="basis-[48%]" />}
+            </View>
           );
         }}
         ListEmptyComponent={
@@ -390,10 +463,11 @@ export default function HomeScreen({ navigation }) {
         </View>
       )}
 
-      {/* Modal Pilihan Varian & Modifier */}
+      {/* Modal Pilihan Varian & Modifier (batch) */}
       <ProductOptionModal
         visible={!!selectedProduct}
         product={selectedProduct}
+        existingCartQty={selectedProductCartQty}
         onClose={() => setSelectedProduct(null)}
         onConfirm={handleConfirmOptions}
       />
@@ -410,7 +484,6 @@ export default function HomeScreen({ navigation }) {
         }}
         onDecrease={decreaseQty}
         onRemove={removeFromCart}
-        onSetDiscount={setItemDiscount}
       />
     </View>
   );

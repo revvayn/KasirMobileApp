@@ -6,11 +6,12 @@ Aplikasi kasir (POS) berbasis **Expo SDK 57** (React Native + React Native Web) 
 
 - 🔐 **Login & Role** — akun **Admin** / **Kasir** berbasis Firebase Auth. Akun pertama yang dibuat otomatis jadi Admin; menu sensitif (Kelola Produk, Manajemen Pengguna, Pengaturan QRIS) hanya untuk Admin.
 - 📦 **Katalog & Manajemen Produk** — daftar produk 2 kolom, pencarian, tambah/edit/hapus produk lewat modal bottom sheet, upload foto via URL, statistik stok (menipis/habis ambang **Stok Minimum**), **varian** (cth. Panas/Dingin + tambahan harga) & **modifier** (cth. Level Pedas).
-- 🛒 **Keranjang & Pembayaran** — keranjang pintar memisahkan item beda varian/catatan (Kopi Panas vs Kopi Dingin), modal pilih varian/modifier/catatan, **diskon per item** (0–50%), total otomatis; keranjang **tersimpan otomatis** walau app ditutup.
-- 💵 **Pembayaran TUNAI & QRIS** — diskon invoice, auto-refresh QRIS 60 detik, cetak struk, dan **nomor invoice otomatis** (`INV-YYYYMMDD-NNNN`).
+- 🛒 **Keranjang & Pembayaran** — keranjang pintar memisahkan item beda varian/catatan (Kopi Panas vs Kopi Dingin), modal pilih varian/modifier/catatan, total otomatis; keranjang **tersimpan otomatis** walau app ditutup.
+- 🏷️ **Diskon Produk** — admin set diskon 0–100% per produk (slider di Kelola Produk); dipakai otomatis saat kasir menjual (badge `-X%` di katalog, harga terdiskon di struk/Excel).
+- 💵 **Pembayaran TUNAI & QRIS** — auto-refresh QRIS 60 detik, cetak struk, dan **nomor invoice otomatis** (`INV-YYYYMMDD-NNNN`).
 - 🧾 **Riwayat Transaksi** — pagination, lihat detail, **cetak ulang struk**, hapus per item / batch per filter.
 - 📊 **Dashboard Laporan** — Total Pendapatan, Laba & Margin, Total Transaksi, Item Terjual, **Pendapatan per Kategori**, Produk Terlaris (progress bar), Transaksi Terbaru; filter Hari Ini/Bulan/Tahun/Semua/Tanggal/**Rentang**.
-- 🔁 **Rekap Shift / Penutupan** — layar **Closing**: ringkasan shift (total penjualan, tunai, QRIS, laba, per kategori, per kasir) + cetak/share PDF.
+- 🔁 **Rekap Shift / Penutupan** — layar **Closing**: ringkasan + filter **tanggal** & **user kasir** (admin bebas pilih, kasir terkunci ke akunnya), total, tunai, QRIS, laba, per kategori, per kasir + cetak/share PDF.
 - 👥 **Manajemen Pengguna** (Admin) — buat/hapus akun kasir, ubah role & nama.
 - 📈 **Export Excel** — ekspor laporan transaksi sesuai filter ke file `.xlsx` (2 sheet: Transaksi — dengan kolom **Nomor Invoice** & **Diskon** — dan Detail Penjualan). Berjalan di web (unduh langsung) & native (share sheet).
 - ⚡ **Stok atomis** — stok produk otomatis berkurang saat transaksi dibuat (`writeBatch` + `increment`).
@@ -66,7 +67,8 @@ Aktifkan layanan:
 2. **Authentication** — aktifkan penyedia **Email/Password**.
 3. **(Opsional) Storage** untuk unggah gambar.
 4. **Rules (WAJIB sebelum dipakai)** — salin `firestore.rules` di root project ke tab Rules di console, lalu publish. Ringkas aturan:
-   - `products`/`transactions`/`counters`: hanya pengguna yang sudah login yang boleh baca/tulis produk & transaksi.
+   - `products`: baca untuk yang login; tulis (buat/hapus & semua field) hanya **admin**; **kasir hanya boleh meng-update field `stock`** (dipakai `processPayment` untuk memotong stok saat transaksi).
+   - `transactions`/`counters`: baca/tulis (kasir & admin membuat transaksi).
    - `settings` (QRIS): baca untuk yang login, tulis hanya **admin**.
    - `users`: user boleh tulis/update akunnya sendiri; **admin** boleh baca/tulis semua.
 
@@ -155,6 +157,7 @@ Hasil build muncul di halaman https://expo.dev/accounts/_/projects/KasirMobileAp
 | `minStock` | number | Ambang **Stok Minimum** (default 5) untuk badge "Menipis" |
 | `variants` | array | Varian `[{ id, name, extraPrice }]` — cth. Panas +Rp 0, Dingin +Rp 2.000 (opsional) |
 | `modifiers` | array | Modifier `[{ id, name, options: string[] }]` — cth. Level Pedas (opsional) |
+| `discountPercent` | number | Diskon produk 0–100 (di-set admin; dipakai otomatis saat dijual) |
 | `createdAt` | timestamp | Waktu dibuat |
 
 ### `transactions`
@@ -163,15 +166,15 @@ Hasil build muncul di halaman https://expo.dev/accounts/_/projects/KasirMobileAp
 |---|---|---|
 | `invoiceNumber` | string | Nomor invoice `INV-YYYYMMDD-NNNN` (counter harian di `counters/invoice-YYYYMMDD`) |
 | `items` | array | Daftar keranjang `{ name, qty, price, cost (snapshot modal), variant, modifiers, customNote, unitPrice, subtotal, discountPercent, firestoreDocId, category }` |
-| `subtotal` | number | Total semua item sebelum diskon invoice |
-| `discountPercent` | number | Diskon invoice (0–25%) |
-| `discountAmount` | number | Rupiah diskon invoice |
-| `totalAmount` | number | Total akhir yang dibayar (setelah semua diskon) |
+| `subtotal` | number | Total semua item (net harga terdiskon produk) |
+| `discountPercent` | number | Diskon invoice — selalu 0 (diskon hanya milik produk) |
+| `discountAmount` | number | Rupiah diskon invoice — selalu 0 |
+| `totalAmount` | number | Total akhir yang dibayar (net item terdiskon) |
 | `paymentMethod` | string | `CASH` / `QRIS` |
 | `paymentAmount` | number | Uang yang dibayar |
 | `cashReceived` | number | Alias uang yang dibayar (konsisten dengan detail struk) |
 | `change` | number | Kembalian |
-| `cashier` | object | `{ uid, email }` kasir yang menginput (opsional) |
+| `cashier` | object | `{ uid, email }` kasir yang menginput (dipakai filter rekap per user) |
 | `createdAt` | timestamp | Waktu transaksi (serverTimestamp) |
 | `formattedTime` | string | Waktu terformat (dihitung saat insert) |
 
@@ -226,15 +229,15 @@ npm run build:web   # = npx expo export --platform web
 | Screen | Fungsi |
 |---|---|
 | **Login** | Autentikasi email/password; bootstrap akun admin pertama |
-| **Home** | Katalog produk 2 kolom, search, navigasi chips, keranjang (persisted + diskon), floating checkout |
-| **Dashboard** | Ringkasan laporan, laba/margin, pendapatan per kategori, produk terlaris, transaksi terbaru |
-| **History** | Riwayat transaksi, pagination, reprint struk, hapus, export Excel |
-| **ProductManager** | CRUD produk dengan modal bottom sheet (termasuk Stok Minimum) |
-| **Payment** | Input bayar tunai/QRIS, diskon invoice, auto-refresh QRIS, ringkasan pesanan, cetak struk |
+| **Home** | Katalog produk 2 kolom **per kategori** + keranjang (persisted), harga terdiskon; kasir hanya melihat menu ini + Rekap |
+| **Dashboard** | Ringkasan laporan, laba/margin, pendapatan per kategori, produk terlaris, transaksi terbaru (admin) |
+| **History** | Riwayat transaksi, pagination, reprint struk, hapus, export Excel (admin) |
+| **ProductManager** | CRUD produk dengan modal bottom sheet (Stok Minimum + Diskon 0–100%) (admin) |
+| **Payment** | Input bayar tunai/QRIS, auto-refresh QRIS, ringkasan pesanan, cetak struk |
 | **QRISSetting** | Pengaturan QRIS (admin) |
 | **TransactionDetail** | Detail transaksi setelah sukses (invoice number, diskon, cetak PDF) |
-| **Closing** | Rekap shift/harian + cetak/share |
-| **UserManager** | Manajemen pengguna (admin) |
+| **Closing** | Rekap shift/harian — filter tanggal & user kasir (kasir hanya akunnya sendiri) + cetak/share |
+| **UserManager** | Manajemen pengguna — CRUD lengkap (admin) |
 
 ## Konvensi Desain
 

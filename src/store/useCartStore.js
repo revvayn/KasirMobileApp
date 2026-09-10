@@ -28,23 +28,23 @@ export const useCartStore = create(
     (set, get) => ({
       cart: [],
 
-      // Tambah produk ke keranjang dengan opsi varian/modifier/catatan/diskon.
-      // Kombinasi yang sama menambah qty (menggunakan diskon terbaru);
-      // kombinasi berbeda jadi item terpisah.
+      // Tambah produk ke keranjang dengan opsi varian/modifier/catatan.
+      // Diskon TIDAK dipilih di keranjang — diambil dari `product.discountPercent`
+      // yang di-set admin di Manajemen Produk (0–100%).
       addToCart: (product, options = {}) => {
         const {
           variant = null,
           modifiers = [],
           customNote = '',
           quantity = 1,
-          discountPercent = 0,
         } = options;
 
         const productId = product.firestoreDocId || product.id || product.docId;
         const stockLimit = Number(product.stock || 0);
         const basePrice = Number(product.price) || 0;
         const extraPrice = Number(variant?.extraPrice) || 0;
-        const rate = Math.min(Math.max(Number(discountPercent) || 0, 0), 100);
+        // Diskon melekat pada produk (diatur admin), bukan pilihan kasir.
+        const rate = Math.min(Math.max(Number(product.discountPercent) || 0, 0), 100);
         const unitPrice = calcUnitPrice(basePrice, extraPrice, rate);
         const note = String(customNote || '').trim();
 
@@ -60,21 +60,13 @@ export const useCartStore = create(
             return { ok: false, reason: 'STOCK_LIMIT' };
           }
           const qty = existing.qty + quantity;
-          // Pakai diskon terbaru dari opsi (default memakai diskon lama).
-          const nextRate =
-            options.discountPercent !== undefined
-              ? rate
-              : Number(existing.discountPercent) || 0;
-          const nextUnitPrice = calcUnitPrice(basePrice, extraPrice, nextRate);
           set({
             cart: currentCart.map((item) =>
               item.cartId === newCartId
                 ? {
                     ...item,
                     qty,
-                    discountPercent: nextRate,
-                    unitPrice: nextUnitPrice,
-                    subtotal: nextUnitPrice * qty,
+                    subtotal: unitPrice * qty,
                   }
                 : item
             ),
@@ -114,25 +106,7 @@ export const useCartStore = create(
         return { ok: true, qty: quantity };
       },
 
-      // Ubah diskon % satu baris item keranjang (per kartId).
-      setItemDiscount: (cartId, discountPercent) => {
-        const rate = Math.min(Math.max(Number(discountPercent) || 0, 0), 100);
-        set({
-          cart: get().cart.map((item) => {
-            if (item.cartId !== cartId) return item;
-            const extra = Number(item.variant?.extraPrice) || 0;
-            const unitPrice = calcUnitPrice(item.price, extra, rate);
-            return {
-              ...item,
-              discountPercent: rate,
-              unitPrice,
-              subtotal: unitPrice * item.qty,
-            };
-          }),
-        });
-      },
-
-      // Naikkan jumlah item keranjang berdasarkan cartId (pakai opsi yang sudah dipilih).
+      // Naikkan jumlah item keranjang berdasarkan cartId (pakai snapshot yang sudah dipilih).
       increaseQty: (cartId) => {
         const currentCart = get().cart;
         const existing = currentCart.find((item) => item.cartId === cartId);

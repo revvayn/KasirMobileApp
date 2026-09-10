@@ -1,12 +1,29 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Platform,
+  TextInput,
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useFocusEffect } from '@react-navigation/native';
 import { getTransactions, filterTransactionsByPeriod, getTransactionProfit } from '../services/transactionService';
+import { listUsers } from '../services/authService';
+import { useAuthStore } from '../store/useAuthStore';
 import { formatRupiah } from '../utils/currency';
 import colors from '../theme/colors';
+
+const toDateLabel = (dateStr) => {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  return dt.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+};
 
 const buildClosingHtml = (data) => {
   const kategoriRows = (data.categoryBreakdown || [])
@@ -15,6 +32,16 @@ const buildClosingHtml = (data) => {
         <div class="row-flex">
           <span>${k.category || 'Tanpa Kategori'} (${k.qty} pcs)</span>
           <span>Rp ${k.revenue.toLocaleString('id-ID')}</span>
+        </div>`
+    )
+    .join('\n');
+
+  const kasirRows = (data.cashierBreakdown || [])
+    .map(
+      (k) => `
+        <div class="row-flex">
+          <span>${k.name}</span>
+          <span>${k.count} tx · Rp ${k.revenue.toLocaleString('id-ID')}</span>
         </div>`
     )
     .join('\n');
@@ -31,7 +58,7 @@ const buildClosingHtml = (data) => {
     <body>
       <div class="text-center">
         <h2 style="margin: 0;">REKAP SHIFT / HARIAN</h2>
-        <p style="font-size: 11px; margin: 2px 0;">${data.dateLabel}</p>
+        <p style="font-size: 11px; margin: 2px 0;">${data.dateLabel} — ${data.userLabel}</p>
       </div>
       <div class="divider"></div>
       <div class="row-flex"><span class="bold">Total Transaksi</span><span class="bold">${data.transactions}</span></div>
@@ -45,6 +72,7 @@ const buildClosingHtml = (data) => {
       <div class="row-flex" style="font-size: 13px; margin-top: 4px;"><span class="bold">Laba Kotor</span><span class="bold">Rp ${data.profit.toLocaleString('id-ID')}</span></div>
       <div class="row-flex"><span>Margin</span><span>${data.margin.toFixed(1)}%</span></div>
       <div class="divider"></div>
+      ${kasirRows ? `<div class="bold" style="font-size: 12px; margin-bottom: 4px;">Per Kasir</div>${kasirRows}<div class="divider"></div>` : ''}
       <div class="bold" style="font-size: 12px; margin-bottom: 4px;">Per Kategori</div>
       ${kategoriRows || '<div class="row-flex"><span>Tidak ada penjualan.</span></div>'}
       <div class="divider"></div>
@@ -56,23 +84,53 @@ const buildClosingHtml = (data) => {
 };
 
 export default function ClosingScreen() {
+  const authUser = useAuthStore((s) => s.user);
+  const isAdmin = useAuthStore((s) => s.role === 'admin');
+
+  const todayStr = () => new Date().toISOString().split('T')[0];
+  const [selectedDate, setSelectedDate] = useState(todayStr());
+  const [selectedUserId, setSelectedUserId] = useState(null); // null = semua user (admin)
+  const [users, setUsers] = useState([]);
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
+  // Kasir terpaksa difilter ke akunnya sendiri; admin bisa pilih semua/satu user.
+  const effectiveUserId = isAdmin ? selectedUserId : authUser?.uid || null;
+
+  // Muat daftar user (untuk filter admin).
+  useEffect(() => {
+    if (!isAdmin) return;
+    (async () => {
+      const list = (await listUsers()) || [];
+      setUsers(
+        list.map((u) => ({
+          uid: u.id,
+          label: u.displayName || u.email || u.id,
+        }))
+      );
+    })();
+  }, [isAdmin]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const all = await getTransactions();
+    const byDate = filterTransactionsByPeriod(all, 'custom', selectedDate);
+    const filtered =
+      effectiveUserId == null
+        ? byDate
+        : byDate.filter((t) => t.cashier && t.cashier.uid === effectiveUserId);
+    compute(filtered);
+    setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, effectiveUserId]);
+
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [])
+    }, [load])
   );
-
-  const load = async () => {
-    setLoading(true);
-    const all = await getTransactions();
-    const today = filterTransactionsByPeriod(all, 'today');
-    compute(today);
-    setLoading(false);
-  };
 
   const compute = (transactions) => {
     let revenue = 0,
@@ -83,6 +141,7 @@ export default function ClosingScreen() {
       qris = 0,
       discount = 0;
     const catMap = {};
+    const kasirMap = {};
 
     transactions.forEach((t) => {
       revenue += Number(t.totalAmount) || 0;
@@ -93,6 +152,12 @@ export default function ClosingScreen() {
       const p = getTransactionProfit(t);
       cost += p.cost;
       profit += p.profit;
+
+      const cs = t.cashier;
+      const kasirName = cs?.displayName || cs?.email || 'Tidak diketahui';
+      if (!kasirMap[kasirName]) kasirMap[kasirName] = { count: 0, revenue: 0 };
+      kasirMap[kasirName].count += 1;
+      kasirMap[kasirName].revenue += Number(t.totalAmount) || 0;
 
       (Array.isArray(t.items) ? t.items.flat() : []).forEach((it) => {
         const qty = Number(it.qty || it.quantity) || 0;
@@ -108,8 +173,22 @@ export default function ClosingScreen() {
       .map((cat) => ({ category: cat, ...catMap[cat] }))
       .sort((a, b) => b.revenue - a.revenue);
 
+    const cashierBreakdown = Object.keys(kasirMap)
+      .map((name) => ({ name, ...kasirMap[name] }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    const userLabel = isAdmin
+      ? effectiveUserId == null
+        ? 'Semua Kasir'
+        : (users.find((u) => u.uid === effectiveUserId)?.label || 'Kasir')
+      : (users.find((u) => u.uid === effectiveUserId)?.label ||
+          authUser?.email ||
+          authUser?.uid ||
+          'Kasir');
+
     setData({
-      dateLabel: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }),
+      dateLabel: toDateLabel(selectedDate),
+      userLabel,
       transactions: transactions.length,
       revenue,
       cost,
@@ -120,6 +199,7 @@ export default function ClosingScreen() {
       qris,
       discount,
       categoryBreakdown,
+      cashierBreakdown,
     });
   };
 
@@ -167,9 +247,79 @@ export default function ClosingScreen() {
 
   return (
     <ScrollView className="flex-1 bg-bg" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+      {/* Filter Tanggal */}
+      <View className="bg-surface p-4 rounded-[22px] mb-4 border border-hairline">
+        <Text className="text-xs font-bold text-ink-muted mb-2">Tanggal Rekap</Text>
+        {Platform.OS === 'web' ? (
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '12px 14px',
+              borderRadius: 12,
+              border: '1px solid #E5E3DD',
+              background: '#F6F3EE',
+              fontSize: 14,
+              fontFamily: 'SatoshiMedium',
+              color: '#20201D',
+            }}
+          />
+        ) : (
+          <TextInput
+            className="border border-hairline rounded-2xl px-4 py-3.5 bg-bg text-ink text-sm"
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor={colors['ink-muted']}
+            value={selectedDate}
+            onChangeText={setSelectedDate}
+          />
+        )}
+
+        {isAdmin ? (
+          <>
+            <Text className="text-xs font-bold text-ink-muted mt-4 mb-2">Filter Kasir</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              <TouchableOpacity
+                className={`px-3.5 py-2 rounded-2xl border ${
+                  effectiveUserId == null ? 'bg-primary border-primary' : 'bg-bg border-hairline'
+                }`}
+                onPress={() => setSelectedUserId(null)}
+                activeOpacity={0.8}
+              >
+                <Text className={`text-[12px] font-bold ${effectiveUserId == null ? 'text-white' : 'text-ink'}`}>
+                  Semua User
+                </Text>
+              </TouchableOpacity>
+              {users.map((u) => {
+                const selected = effectiveUserId === u.uid;
+                return (
+                  <TouchableOpacity
+                    key={u.uid}
+                    className={`px-3.5 py-2 rounded-2xl border ${
+                      selected ? 'bg-primary border-primary' : 'bg-bg border-hairline'
+                    }`}
+                    onPress={() => setSelectedUserId(u.uid)}
+                    activeOpacity={0.8}
+                  >
+                    <Text className={`text-[12px] font-bold ${selected ? 'text-white' : 'text-ink'}`} numberOfLines={1}>
+                      {u.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </>
+        ) : (
+          <Text className="text-[11px] font-medium text-ink-muted mt-3">
+            Rekap ditampilkan untuk akun Anda ({data.userLabel}).
+          </Text>
+        )}
+      </View>
+
       <View className="bg-primary rounded-[26px] p-5 mb-4 shadow-lg overflow-hidden">
         <View className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/5" />
-        <Text className="text-white/80 text-[13px] font-semibold">Rekap Shift</Text>
+        <Text className="text-white/80 text-[13px] font-semibold">Rekap — {data.userLabel}</Text>
         <Text className="text-white font-bold text-base mt-0.5">{data.dateLabel}</Text>
         <Text className="text-white text-[30px] font-extrabold -tracking-tight mt-2">
           {formatRupiah(data.revenue)}
@@ -200,6 +350,31 @@ export default function ClosingScreen() {
         </View>
       </View>
 
+      {isAdmin && data.cashierBreakdown.length > 0 && (
+        <View className="bg-surface p-4 rounded-[22px] mb-4 border border-hairline">
+          <View className="flex-row items-center mb-3">
+            <View className="w-8 h-8 rounded-xl bg-accent-soft items-center justify-center mr-2.5">
+              <MaterialIcons name="people" size={18} color={colors.accent} />
+            </View>
+            <Text className="text-[16px] font-bold text-ink">Per Kasir</Text>
+          </View>
+          {data.cashierBreakdown.map((k, i) => (
+            <View
+              key={k.name}
+              className={`flex-row items-center justify-between py-2 ${
+                i !== data.cashierBreakdown.length - 1 ? 'border-b border-hairline' : ''
+              }`}
+            >
+              <Text className="text-sm font-semibold text-ink flex-1" numberOfLines={1}>
+                {k.name}
+              </Text>
+              <Text className="text-xs font-bold text-ink-muted mr-3">{k.count} tx</Text>
+              <Text className="font-extrabold text-ink text-[13px]">{formatRupiah(k.revenue)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
       <View className="bg-surface p-4 rounded-[22px] mb-4 border border-hairline">
         <View className="flex-row items-center mb-3">
           <View className="w-8 h-8 rounded-xl bg-accent-soft items-center justify-center mr-2.5">
@@ -208,10 +383,15 @@ export default function ClosingScreen() {
           <Text className="text-[16px] font-bold text-ink">Penjualan per Kategori</Text>
         </View>
         {data.categoryBreakdown.length === 0 ? (
-          <Text className="text-xs font-medium text-ink-muted italic">Belum ada penjualan hari ini.</Text>
+          <Text className="text-xs font-medium text-ink-muted italic">Belum ada penjualan pada periode ini.</Text>
         ) : (
           data.categoryBreakdown.map((k, i) => (
-            <View key={k.category} className={`flex-row items-center justify-between py-2 ${i !== data.categoryBreakdown.length - 1 ? 'border-b border-hairline' : ''}`}>
+            <View
+              key={k.category}
+              className={`flex-row items-center justify-between py-2 ${
+                i !== data.categoryBreakdown.length - 1 ? 'border-b border-hairline' : ''
+              }`}
+            >
               <View className="flex-1 flex-row items-center">
                 <View className="w-7 h-7 rounded-lg bg-bg items-center justify-center mr-2.5">
                   <Text className="text-[11px] font-extrabold text-ink-muted">{i + 1}</Text>

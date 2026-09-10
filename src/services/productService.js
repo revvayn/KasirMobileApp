@@ -31,7 +31,7 @@ export const getProducts = async () => {
 };
 
 // Tambah produk baru
-export const addProduct = async (name, price, stock, imageUrl, category = "", description = "", cost = null, variants = [], modifiers = [], minStock = 5) => {
+export const addProduct = async (name, price, stock, imageUrl, category = "", description = "", cost = null, variants = [], modifiers = [], minStock = 5, discountPercent = 0) => {
   try {
     await addDoc(productsCollection, {
       name,
@@ -39,6 +39,7 @@ export const addProduct = async (name, price, stock, imageUrl, category = "", de
       cost: cost === null || cost === "" ? Number(price) : Number(cost),
       stock: Number(stock),
       minStock: Number(minStock) || 5,
+      discountPercent: Math.min(Math.max(Number(discountPercent) || 0, 0), 100),
       imageUrl: imageUrl || "https://via.placeholder.com/150",
       category,
       description,
@@ -52,7 +53,7 @@ export const addProduct = async (name, price, stock, imageUrl, category = "", de
 };
 
 // Update produk
-export const updateProduct = async (id, name, price, stock, imageUrl, category = "", description = "", cost = null, variants = [], modifiers = [], minStock = 5) => {
+export const updateProduct = async (id, name, price, stock, imageUrl, category = "", description = "", cost = null, variants = [], modifiers = [], minStock = 5, discountPercent = 0) => {
   try {
     const productDoc = doc(db, "products", id);
     await updateDoc(productDoc, {
@@ -61,6 +62,7 @@ export const updateProduct = async (id, name, price, stock, imageUrl, category =
       cost: cost === null || cost === "" ? Number(price) : Number(cost),
       stock: Number(stock),
       minStock: Number(minStock) || 5,
+      discountPercent: Math.min(Math.max(Number(discountPercent) || 0, 0), 100),
       imageUrl: imageUrl || "https://via.placeholder.com/150",
       category,
       description,

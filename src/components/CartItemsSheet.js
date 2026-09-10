@@ -4,10 +4,9 @@ import { MaterialIcons } from '@expo/vector-icons';
 import colors from '../theme/colors';
 import { getItemOptionsLabel } from '../utils/cartLabel';
 
-const DISCOUNT_OPTIONS = [0, 5, 10, 15, 20, 25, 50];
-
 // Bottom sheet daftar kombinasi item keranjang dari SATU produk (varian/note
-// berbeda bisa lebih dari satu). Setiap baris punya stepper qty + pilih diskon.
+// berbeda bisa lebih dari satu). Setiap baris punya stepper qty.
+// Diskon item berasal dari produk (dipakai otomatis), tidak bisa diubah kasir.
 export default function CartItemsSheet({
   visible,
   productName,
@@ -16,7 +15,6 @@ export default function CartItemsSheet({
   onIncrease,
   onDecrease,
   onRemove,
-  onSetDiscount,
 }) {
   const list = items || [];
 
@@ -31,7 +29,7 @@ export default function CartItemsSheet({
                 {productName || 'Keranjang Produk'}
               </Text>
               <Text className="text-[12px] font-medium text-ink-muted mt-0.5">
-                {list.length} kombinasi — ubah jumlah atau diskon
+                {list.length} kombinasi — ubah jumlah
               </Text>
             </View>
             <TouchableOpacity
@@ -93,29 +91,6 @@ export default function CartItemsSheet({
                     >
                       <MaterialIcons name="delete-outline" size={16} color={colors.danger} />
                     </TouchableOpacity>
-                  </View>
-
-                  <View className="flex-row flex-wrap items-center px-3.5 pb-3">
-                    <Text className="text-[10px] font-bold text-ink-muted mr-2">Diskon</Text>
-                    {DISCOUNT_OPTIONS.map((pct) => {
-                      const selected = discountPercent === pct;
-                      return (
-                        <TouchableOpacity
-                          key={pct}
-                          className={`px-2.5 py-1 rounded-lg border mr-1.5 mb-1 ${
-                            selected
-                              ? 'bg-primary border-primary'
-                              : 'bg-bg border-hairline'
-                          }`}
-                          onPress={() => onSetDiscount(item.cartId, pct)}
-                          activeOpacity={0.8}
-                        >
-                          <Text className={`text-[11px] font-bold ${selected ? 'text-white' : 'text-ink-muted'}`}>
-                            {pct}%
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
                   </View>
                 </View>
               );

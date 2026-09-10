@@ -3,24 +3,33 @@ import { View, Text, TextInput, TouchableOpacity, Modal, ScrollView } from 'reac
 import { MaterialIcons } from '@expo/vector-icons';
 import colors from '../theme/colors';
 import { formatRupiah } from '../utils/currency';
+import { calcUnitPrice } from '../store/useCartStore';
+import { getItemOptionsLabel } from '../utils/cartLabel';
 
-// Modal pemilihan opsi produk: pilih 1 varian, checklist modifier,
-// catatan manual, dan jumlah. Menghitung harga real-time:
-// (harga dasar + extraPrice varian) * quantity.
-export default function ProductOptionModal({ visible, product, onClose, onConfirm }) {
+// Modal pemilihan opsi produk dalam mode BATCH:
+// kasir bisa menambah beberapa baris pesanan dengan varian/opsi/catatan
+// berbeda SEKALIGUS tanpa keluar modal (cth. 2 nasi goreng pedas + 1 normal).
+// Tiap pilihan di-Tambah → masuk daftar; tombol Konfirmasi meng-commit semua.
+// Diskon memakai `product.discountPercent` (di-set admin), bukan pilihan kasir.
+export default function ProductOptionModal({
+  visible,
+  product,
+  onClose,
+  onConfirm,
+  existingCartQty = 0,
+}) {
   const [selectedVariantId, setSelectedVariantId] = useState('');
   const [selectedModifiers, setSelectedModifiers] = useState({});
   const [customNote, setCustomNote] = useState('');
   const [quantity, setQuantity] = useState(1);
-  const [discountPercent, setDiscountPercent] = useState(0);
-
-  const DISCOUNT_OPTIONS = [0, 5, 10, 15, 20, 25, 50];
+  const [batch, setBatch] = useState([]);
 
   const variants = useMemo(() => product?.variants || [], [product]);
   const modifiers = useMemo(() => product?.modifiers || [], [product]);
   const stockLimit = Number(product?.stock || 0);
+  const productDiscount = Math.min(Math.max(Number(product?.discountPercent) || 0, 0), 100);
 
-  // Reset pilihan setiap kali modal dibuka ulang
+  // Reset pilihan & daftar setiap kali modal dibuka ulang
   useEffect(() => {
     if (visible) {
       setSelectedVariantId(variants.length > 0 ? variants[0].id : '');
@@ -31,14 +40,10 @@ export default function ProductOptionModal({ visible, product, onClose, onConfir
       setSelectedModifiers(defaultMods);
       setCustomNote('');
       setQuantity(1);
-      setDiscountPercent(0);
+      setBatch([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, product]);
-
-  useEffect(() => {
-    if (quantity > stockLimit && stockLimit > 0) setQuantity(stockLimit);
-  }, [stockLimit, quantity]);
 
   if (!product) return null;
 
@@ -46,22 +51,63 @@ export default function ProductOptionModal({ visible, product, onClose, onConfir
   const selectedVariant =
     variants.find((v) => v.id === selectedVariantId) || (variants.length === 0 ? null : variants[0]);
   const extraPrice = Number(selectedVariant?.extraPrice) || 0;
-  const rawUnitPrice = basePrice + extraPrice;
-  const unitPrice = Math.round(rawUnitPrice * (1 - discountPercent / 100));
-  const totalPrice = unitPrice * quantity;
+  const unitPrice = calcUnitPrice(basePrice, extraPrice, productDiscount);
 
   const selectedModifiersList = modifiers
     .filter((m) => selectedModifiers[m.id])
     .map((m) => ({ id: m.id, name: m.name, option: selectedModifiers[m.id] }));
 
-  const handleConfirm = () => {
-    onConfirm({
-      variant: selectedVariant || null,
-      modifiers: selectedModifiersList,
-      customNote,
-      quantity,
-      discountPercent,
+  const comboKey = (variant, mods, note) =>
+    `${variant?.id || 'v'}|${(mods || [])
+      .map((m) => `${m.id}:${m.option}`)
+      .join(',')}|${(note || '').trim()}`;
+
+  const batchTotalQty = batch.reduce((s, l) => s + l.quantity, 0);
+  const batchTotal = batch.reduce((s, l) => s + l.quantity * (Number(l.unitPrice) || 0), 0);
+  // Sisa stok untuk produk ini: stok produk - yang sudah di keranjang - yang di daftar modal
+  const remainingStock = Math.max(0, stockLimit - existingCartQty - batchTotalQty);
+  const stockExceeded = stockLimit > 0 && batchTotalQty + existingCartQty > stockLimit;
+  const canAdd = quantity > 0 && remainingStock >= quantity;
+
+  // Tambahkan pilihan saat ini (varian/modi/catatan × quantity) ke daftar.
+  // Kombinasi identik digabung (qty dijumlah) — konsisten dengan cartId store.
+  const handleAddToBatch = () => {
+    if (quantity <= 0) return;
+    const key = comboKey(selectedVariant, selectedModifiersList, customNote);
+    setBatch((prev) => {
+      const idx = prev.findIndex((l) => l.key === key);
+      if (idx >= 0) {
+        return prev.map((l, i) =>
+          i === idx ? { ...l, quantity: l.quantity + quantity } : l
+        );
+      }
+      return [
+        ...prev,
+        {
+          key,
+          variant: selectedVariant,
+          modifiers: selectedModifiersList,
+          customNote,
+          quantity,
+          unitPrice,
+        },
+      ];
     });
+    setQuantity(1);
+  };
+
+  const handleRemoveFromBatch = (key) =>
+    setBatch((prev) => prev.filter((l) => l.key !== key));
+
+  // Commit semua baris ke keranjang. Jika ada yang gagal (stok limit),
+  // berhenti & jangan tutup modal (HomeScreen sudah menampilkan alert).
+  const handleCommit = () => {
+    if (batch.length === 0) return;
+    for (const line of batch) {
+      const result = onConfirm(line);
+      if (!result || !result.ok) return;
+    }
+    onClose();
   };
 
   const chipBase = 'px-4 py-2.5 rounded-2xl border flex-row items-center mr-2 mb-2';
@@ -71,7 +117,7 @@ export default function ProductOptionModal({ visible, product, onClose, onConfir
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View className="flex-1 justify-end bg-black/50">
-        <View className="bg-surface rounded-t-[28px] max-h-[90%]">
+        <View className="bg-surface rounded-t-[28px] max-h-[92%]">
           <View className="w-10 h-1.5 rounded-full bg-hairline self-center mt-3 mb-2" />
 
           {/* Header Produk */}
@@ -82,10 +128,10 @@ export default function ProductOptionModal({ visible, product, onClose, onConfir
               </Text>
               <Text className="text-[13px] font-semibold text-accent mt-0.5">
                 {formatRupiah(unitPrice)}
-                {(extraPrice > 0 || discountPercent > 0) && (
+                {(extraPrice > 0 || productDiscount > 0) && (
                   <Text className="text-[11px] font-medium text-ink-muted">
                     {extraPrice > 0 ? ` (${formatRupiah(basePrice)} + ${formatRupiah(extraPrice)})` : ''}
-                    {discountPercent > 0 ? ` diskon ${discountPercent}%` : ''}
+                    {productDiscount > 0 ? ` diskon ${productDiscount}%` : ''}
                   </Text>
                 )}
               </Text>
@@ -182,32 +228,6 @@ export default function ProductOptionModal({ visible, product, onClose, onConfir
               </View>
             )}
 
-            {/* Diskon */}
-            <View className="mb-5">
-              <Text className="text-xs font-bold text-ink-muted mb-2">
-                Diskon ({discountPercent > 0 ? `-${discountPercent}%` : '0%'})
-              </Text>
-              <View className="flex-row flex-wrap">
-                {DISCOUNT_OPTIONS.map((pct) => {
-                  const selected = discountPercent === pct;
-                  return (
-                    <TouchableOpacity
-                      key={pct}
-                      className={`px-4 py-2 rounded-2xl border mr-2 mb-2 ${
-                        selected ? 'bg-primary border-primary' : 'bg-surface border-hairline'
-                      }`}
-                      onPress={() => setDiscountPercent(pct)}
-                      activeOpacity={0.8}
-                    >
-                      <Text className={`text-[13px] font-bold ${selected ? 'text-white' : 'text-ink'}`}>
-                        {pct}%
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
             {/* Catatan */}
             <View className="mb-4">
               <Text className="text-xs font-bold text-ink-muted mb-2">Catatan (opsional)</Text>
@@ -226,7 +246,7 @@ export default function ProductOptionModal({ visible, product, onClose, onConfir
             </View>
 
             {/* Jumlah */}
-            <View className="flex-row items-center justify-between mb-5">
+            <View className="flex-row items-center justify-between mb-3">
               <Text className="text-xs font-bold text-ink-muted">Jumlah</Text>
               <View className="flex-row items-center bg-bg rounded-2xl px-2 py-1.5">
                 <TouchableOpacity
@@ -243,7 +263,7 @@ export default function ProductOptionModal({ visible, product, onClose, onConfir
                 <TouchableOpacity
                   className="w-8 h-8 rounded-xl bg-primary items-center justify-center"
                   onPress={() => {
-                    if (quantity + 1 <= stockLimit || stockLimit === 0) {
+                    if (quantity + 1 <= remainingStock || stockLimit === 0) {
                       setQuantity((q) => q + 1);
                     }
                   }}
@@ -254,28 +274,111 @@ export default function ProductOptionModal({ visible, product, onClose, onConfir
                 </TouchableOpacity>
               </View>
             </View>
+
+            {/* Tombol tambah ke daftar */}
+            <TouchableOpacity
+              className={`rounded-2xl py-3 flex-row items-center justify-center mb-4 ${
+                canAdd ? 'bg-accent' : 'bg-hairline'
+              }`}
+              onPress={handleAddToBatch}
+              disabled={!canAdd}
+              activeOpacity={0.85}
+            >
+              <MaterialIcons name="playlist-add" size={18} color={canAdd ? '#fff' : colors['ink-muted']} />
+              <Text className={`font-bold text-[13px] ml-2 ${canAdd ? 'text-white' : 'text-ink-muted'}`}>
+                Tambah ke Daftar — {quantity} × {formatRupiah(unitPrice)}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Daftar pesanan (batch) */}
+            <View className="mb-2">
+              <View className="flex-row items-center justify-between mb-2">
+                <Text className="text-xs font-bold text-ink-muted">
+                  Daftar Pesanan ({batchTotalQty} item)
+                </Text>
+                {stockLimit > 0 && (
+                  <Text className={`text-[10px] font-bold ${remainingStock > 0 ? 'text-success' : 'text-danger'}`}>
+                    Sisa stok: {remainingStock}
+                  </Text>
+                )}
+              </View>
+              {batch.length === 0 ? (
+                <View className="bg-bg rounded-2xl px-4 py-3 border border-hairline">
+                  <Text className="text-[11px] font-medium text-ink-muted">
+                    Pilih varian/opsi lalu tekan "Tambah ke Daftar". Bisa pilih kombinasi berbeda tanpa keluar.
+                  </Text>
+                </View>
+              ) : (
+                batch.map((line) => (
+                  <View
+                    key={line.key}
+                    className="bg-bg rounded-2xl px-3.5 py-2.5 mb-2 border border-hairline flex-row items-center"
+                  >
+                    <View className="flex-1 pr-2">
+                      <Text className="text-[12px] font-bold text-ink" numberOfLines={1}>
+                        {getItemOptionsLabel(line)}
+                      </Text>
+                      <Text className="text-[11px] font-medium text-ink-muted mt-0.5">
+                        {line.quantity} × {formatRupiah(line.unitPrice)}
+                      </Text>
+                    </View>
+                    <Text className="font-extrabold text-[13px] text-accent mr-2">
+                      {formatRupiah(line.quantity * (Number(line.unitPrice) || 0))}
+                    </Text>
+                    <TouchableOpacity
+                      className="w-8 h-8 rounded-xl bg-danger-soft items-center justify-center"
+                      onPress={() => handleRemoveFromBatch(line.key)}
+                      activeOpacity={0.8}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <MaterialIcons name="close" size={16} color={colors.danger} />
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+            </View>
           </ScrollView>
 
           {/* Footer: total + tombol */}
           <View className="px-5 pt-3 pb-7 border-t border-hairline">
-            <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-xs font-bold text-ink-muted">
-                Total ({quantity}) item
-              </Text>
-              <Text className="text-[20px] font-extrabold text-accent -tracking-tight">
-                {formatRupiah(totalPrice)}
-              </Text>
-            </View>
+            {batch.length > 0 ? (
+              <View className="flex-row items-center justify-between mb-3">
+                <Text className="text-xs font-bold text-ink-muted">
+                  Total {batchTotalQty} item
+                </Text>
+                <Text className="text-[20px] font-extrabold text-accent -tracking-tight">
+                  {formatRupiah(batchTotal)}
+                </Text>
+              </View>
+            ) : (
+              <View className="flex-row items-center justify-between mb-3">
+                <Text className="text-xs font-bold text-ink-muted">Pilihan saat ini · {quantity} item</Text>
+                <Text className="text-[20px] font-extrabold text-accent -tracking-tight">
+                  {formatRupiah(unitPrice * quantity)}
+                </Text>
+              </View>
+            )}
+
             <TouchableOpacity
-              className="bg-primary rounded-2xl py-4 flex-row items-center justify-center"
-              onPress={handleConfirm}
+              className={`rounded-2xl py-4 flex-row items-center justify-center ${
+                batch.length > 0 && !stockExceeded ? 'bg-primary' : 'bg-hairline'
+              }`}
+              onPress={handleCommit}
+              disabled={batch.length === 0 || stockExceeded}
               activeOpacity={0.9}
             >
-              <MaterialIcons name="add-shopping-cart" size={18} color="#fff" />
-              <Text className="text-white font-bold text-[15px] ml-2">
-                Masukkan ke Keranjang
+              <MaterialIcons name="add-shopping-cart" size={18} color={batch.length > 0 && !stockExceeded ? '#fff' : colors['ink-muted']} />
+              <Text className={`font-bold text-[15px] ml-2 ${batch.length > 0 && !stockExceeded ? 'text-white' : 'text-ink-muted'}`}>
+                {batch.length > 0
+                  ? `Masukkan ${batchTotalQty} Item ke Keranjang`
+                  : 'Pilih dulu, tekan Tambah ke Daftar'}
               </Text>
             </TouchableOpacity>
+            {stockExceeded && (
+              <Text className="text-[11px] font-bold text-danger text-center mt-2">
+                Jumlah melebihi stok tersedia ({stockLimit - existingCartQty} tersisa).
+              </Text>
+            )}
           </View>
         </View>
       </View>

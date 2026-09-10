@@ -58,7 +58,8 @@ const getNextInvoiceNumber = async () => {
 // ---- Pembayaran ----
 
 // Memproses pembayaran sekaligus memotong stok produk secara atomis.
-// options: { discountPercent, discountAmount } untuk diskon invoice (opsional).
+// options: { cashier } — identitas kasir { uid, email, displayName? } untuk filter rekap per user.
+// Diskon hanya milik produk (items[].discountPercent); tidak ada diskon invoice.
 export const processPayment = async (
   cartItems,
   totalAmount,
@@ -118,7 +119,13 @@ export const processPayment = async (
       paymentAmount: Number(cashReceived) || Number(totalAmount) || 0,
       cashReceived: Number(cashReceived) || Number(totalAmount) || 0,
       change: Number(change) || 0,
-      cashier: null, // diisi dari store auth jika tersedia
+      cashier: options.cashier
+        ? {
+            uid: String(options.cashier.uid || ''),
+            email: String(options.cashier.email || ''),
+            displayName: String(options.cashier.displayName || options.cashier.email || ''),
+          }
+        : null,
       createdAt: serverTimestamp(),
       formattedTime: formattedTimeStr,
     };

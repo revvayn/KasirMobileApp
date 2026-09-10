@@ -11,9 +11,13 @@ service cloud.firestore {
     }
 
     // Katalog produk: dibaca oleh semua pengguna login, ditulis admin.
+    // Kasir boleh meng-update hanya field `stock` (dipakai processPayment
+    // untuk memotong stok saat transaksi).
     match /products/{productId} {
       allow read: if signedIn();
-      allow create, update, delete: if signedIn() && isAdmin();
+      allow create, delete: if signedIn() && isAdmin();
+      allow update: if signedIn() && (isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock']));
     }
 
     // Transaksi: kasir & admin boleh membuat/membaca/menghapus.

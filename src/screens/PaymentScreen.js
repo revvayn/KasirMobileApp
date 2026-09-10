@@ -2,27 +2,23 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, Image, Alert, ActivityIndicator, ScrollView, Platform } from 'react-native';
 import { getQRISUrl, processPayment } from '../services/paymentService';
 import { useCartStore } from '../store/useCartStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { getItemOptionsLabel } from '../utils/cartLabel';
 import colors from '../theme/colors';
 import { formatRupiahInput, parseRupiahInput } from '../utils/currency';
-
-const INVOICE_DISCOUNT_OPTIONS = [0, 5, 10, 15, 20, 25];
 
 export default function PaymentScreen({ route, navigation }) {
   const { cartItems = [], totalAmount = 0 } = route.params || {};
 
   const clearCart = useCartStore((s) => s.clearCart);
+  const authUser = useAuthStore((s) => s.user);
 
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [cashReceived, setCashReceived] = useState('');
   const [change, setChange] = useState(0);
   const [qrisUrl, setQrisUrl] = useState('');
   const [loading, setLoading] = useState(false);
-  const [invoiceDiscount, setInvoiceDiscount] = useState(0);
   const [refreshIn, setRefreshIn] = useState(60);
-
-  const invoiceDiscountAmount = Math.round(totalAmount * (invoiceDiscount / 100));
-  const totalPayable = totalAmount - invoiceDiscountAmount;
 
   const fetchQRIS = async () => {
     const url = await getQRISUrl();
@@ -53,7 +49,7 @@ export default function PaymentScreen({ route, navigation }) {
     const formatted = formatRupiahInput(text);
     setCashReceived(formatted);
     const received = parseRupiahInput(formatted);
-    const computedChange = received - totalPayable;
+    const computedChange = received - totalAmount;
     setChange(computedChange > 0 ? computedChange : 0);
   };
 
@@ -68,7 +64,7 @@ export default function PaymentScreen({ route, navigation }) {
   const handleFinishPayment = async () => {
     if (paymentMethod === 'CASH') {
       const received = parseRupiahInput(cashReceived);
-      if (received < totalPayable) {
+      if (received < totalAmount) {
         showAlert('Pembayaran Gagal', 'Uang yang diterima kurang dari total tagihan!');
         return;
       }
@@ -84,11 +80,13 @@ export default function PaymentScreen({ route, navigation }) {
     try {
       const result = await processPayment(
         cartItems,
-        totalPayable,
+        totalAmount,
         paymentMethod,
-        paymentMethod === 'CASH' ? parseRupiahInput(cashReceived) : totalPayable,
+        paymentMethod === 'CASH' ? parseRupiahInput(cashReceived) : totalAmount,
         paymentMethod === 'CASH' ? change : 0,
-        { discountPercent: invoiceDiscount, discountAmount: invoiceDiscountAmount }
+        {
+          cashier: authUser ? { uid: authUser.uid, email: authUser.email || '' } : null,
+        }
       );
 
       setLoading(false);
@@ -97,12 +95,13 @@ export default function PaymentScreen({ route, navigation }) {
         const transactionData = result.transaction || {
           id: 'TRX-' + Date.now(),
           items: cartItems,
-          totalAmount: Number(totalPayable),
+          totalAmount: Number(totalAmount),
           paymentMethod: paymentMethod,
-          cashReceived: paymentMethod === 'CASH' ? parseRupiahInput(cashReceived) : Number(totalPayable),
+          cashReceived: paymentMethod === 'CASH' ? parseRupiahInput(cashReceived) : Number(totalAmount),
           change: paymentMethod === 'CASH' ? Number(change) : 0,
-          discountPercent: invoiceDiscount,
-          discountAmount: invoiceDiscountAmount,
+          discountPercent: 0,
+          discountAmount: 0,
+          cashier: authUser ? { uid: authUser.uid, email: authUser.email || '' } : null,
           formattedTime: new Date().toLocaleString('id-ID'),
         };
 
@@ -128,37 +127,8 @@ export default function PaymentScreen({ route, navigation }) {
       <View className="bg-primary p-4 rounded-card mb-4 items-center shadow-md">
         <Text className="text-[13px] text-white opacity-75 font-semibold">Total Tagihan</Text>
         <Text className="text-[26px] font-extrabold text-white mt-1">
-          Rp {totalPayable.toLocaleString('id-ID')}
+          Rp {totalAmount.toLocaleString('id-ID')}
         </Text>
-        {invoiceDiscount > 0 && (
-          <Text className="text-white/70 text-[11px] font-medium mt-1">
-            (diskon invoice {invoiceDiscount}% = -Rp {invoiceDiscountAmount.toLocaleString('id-ID')})
-          </Text>
-        )}
-      </View>
-
-      {/* Diskon Invoice */}
-      <View className="bg-surface p-4 rounded-card mb-4 border border-hairline">
-        <Text className="text-xs font-bold text-ink-muted mb-2">Diskon Invoice (opsional)</Text>
-        <View className="flex-row flex-wrap">
-          {INVOICE_DISCOUNT_OPTIONS.map((pct) => {
-            const selected = invoiceDiscount === pct;
-            return (
-              <TouchableOpacity
-                key={pct}
-                className={`px-3.5 py-2 rounded-2xl border mr-2 mb-2 ${
-                  selected ? 'bg-primary border-primary' : 'bg-bg border-hairline'
-                }`}
-                onPress={() => setInvoiceDiscount(pct)}
-                activeOpacity={0.8}
-              >
-                <Text className={`text-[13px] font-bold ${selected ? 'text-white' : 'text-ink'}`}>
-                  {pct}%
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
       </View>
 
       {/* Ringkasan Pesanan */}

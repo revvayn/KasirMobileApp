@@ -13,6 +13,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import Slider from '@react-native-community/slider';
 import {
   getProducts,
   addProduct,
@@ -37,6 +38,7 @@ export default function ProductManagerScreen() {
   const [cost, setCost] = useState('');
   const [stock, setStock] = useState('');
   const [minStock, setMinStock] = useState('5');
+  const [discountPercent, setDiscountPercent] = useState(0);
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -71,14 +73,13 @@ export default function ProductManagerScreen() {
     setCost('');
     setStock('');
     setMinStock('5');
+    setDiscountPercent(0);
     setCategory('');
     setDescription('');
-setImageUrl('');
+    setImageUrl('');
     setVariants([]);
     setModifierGroups([]);
-    setMinStock('5');
-    setModalVisible(false);
-    setEditingId(null);
+    setModalVisible(true);
   };
 
   const openEditModal = (item) => {
@@ -88,6 +89,7 @@ setImageUrl('');
     setCost(formatRupiahInput(item.cost));
     setStock(item.stock !== undefined && item.stock !== null ? String(item.stock) : '0');
     setMinStock(item.minStock !== undefined && item.minStock !== null ? String(item.minStock) : '5');
+    setDiscountPercent(Number(item.discountPercent) || 0);
     setCategory(item.category || '');
     setDescription(item.description || '');
     setImageUrl(item.imageUrl || '');
@@ -161,7 +163,8 @@ setImageUrl('');
           cost !== '' ? costValue : null,
           variantsData,
           modifiersData,
-          Number(minStock) || 5
+          Number(minStock) || 5,
+          Number(discountPercent) || 0
         );
       } else {
         await addProduct(
@@ -174,7 +177,8 @@ setImageUrl('');
           cost !== '' ? costValue : null,
           variantsData,
           modifiersData,
-          Number(minStock) || 5
+          Number(minStock) || 5,
+          Number(discountPercent) || 0
         );
       }
 
@@ -217,6 +221,7 @@ setImageUrl('');
     setPrice('');
     setCost('');
     setStock('');
+    setDiscountPercent(0);
     setCategory('');
     setDescription('');
     setImageUrl('');
@@ -403,6 +408,13 @@ setImageUrl('');
                   <Text className="text-ink font-extrabold text-[13px] mt-1">
                     Rp {(Number(item.price) || 0).toLocaleString('id-ID')}
                   </Text>
+                  {Number(item.discountPercent || 0) > 0 && (
+                    <View className="self-start bg-danger-soft px-1.5 py-0.5 rounded-md mt-1">
+                      <Text className="text-[10px] font-bold text-danger">
+                        Diskon -{item.discountPercent}%
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 <View className="flex-row gap-2 pr-3">
                   <TouchableOpacity
@@ -551,6 +563,38 @@ setImageUrl('');
               value={minStock}
               onChangeText={setMinStock}
             />
+
+            {/* Diskon Produk — slider 0%-100% */}
+            <View className="mb-1">
+              <View className="flex-row items-center justify-between mb-1 ml-1">
+                <Text className="text-xs font-bold text-ink-muted">Diskon Produk</Text>
+                {discountPercent > 0 ? (
+                  <View className="bg-danger-soft px-2 py-0.5 rounded-md">
+                    <Text className="text-[11px] font-extrabold text-danger">-{discountPercent}%</Text>
+                  </View>
+                ) : (
+                  <Text className="text-[11px] font-medium text-ink-muted">Tidak ada</Text>
+                )}
+              </View>
+              <Slider
+                style={{ width: '100%', height: 36 }}
+                minimumValue={0}
+                maximumValue={100}
+                step={5}
+                value={discountPercent}
+                onValueChange={(v) => setDiscountPercent(Math.round(v))}
+                minimumTrackTintColor={colors.accent}
+                maximumTrackTintColor={colors.hairline}
+                thumbTintColor={colors.primary}
+              />
+              <View className="flex-row justify-between px-1">
+                <Text className="text-[10px] font-medium text-ink-muted">0%</Text>
+                <Text className="text-[10px] font-medium text-ink-muted">100%</Text>
+              </View>
+              <Text className="text-[10px] font-medium text-ink-muted mb-3 ml-1">
+                Diskon dipakai otomatis saat kasir menjual produk ini.
+              </Text>
+            </View>
 
             <Text className={labelClass}>Harga Modal (Rp)</Text>
             <TextInput
