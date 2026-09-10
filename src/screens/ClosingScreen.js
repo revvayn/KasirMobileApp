@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
-  TextInput,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Print from 'expo-print';
@@ -17,6 +16,7 @@ import { listUsers } from '../services/authService';
 import { useAuthStore } from '../store/useAuthStore';
 import { formatRupiah } from '../utils/currency';
 import colors from '../theme/colors';
+import DateField, { dateToStr } from '../components/DateField';
 
 const toDateLabel = (dateStr) => {
   if (!dateStr) return '';
@@ -250,31 +250,37 @@ export default function ClosingScreen() {
       {/* Filter Tanggal */}
       <View className="bg-surface p-4 rounded-[22px] mb-4 border border-hairline">
         <Text className="text-xs font-bold text-ink-muted mb-2">Tanggal Rekap</Text>
-        {Platform.OS === 'web' ? (
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '12px 14px',
-              borderRadius: 12,
-              border: '1px solid #E5E3DD',
-              background: '#F6F3EE',
-              fontSize: 14,
-              fontFamily: 'SatoshiMedium',
-              color: '#20201D',
-            }}
-          />
-        ) : (
-          <TextInput
-            className="border border-hairline rounded-2xl px-4 py-3.5 bg-bg text-ink text-sm"
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={colors['ink-muted']}
-            value={selectedDate}
-            onChangeText={setSelectedDate}
-          />
-        )}
+        <DateField value={selectedDate} onChange={setSelectedDate} />
+        <View className="flex-row flex-wrap gap-2 mt-3">
+          {[
+            { key: 'today', label: 'Hari Ini' },
+            { key: 'yesterday', label: 'Kemarin' },
+            { key: 'last7', label: '7 Hari Terakhir' },
+          ].map((p) => {
+            const apply = () => {
+              if (p.key === 'today') setSelectedDate(dateToStr(new Date()));
+              else if (p.key === 'yesterday') {
+                const now = new Date();
+                const y = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+                setSelectedDate(dateToStr(y));
+              } else {
+                const now = new Date();
+                const s = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+                setSelectedDate(dateToStr(s));
+              }
+            };
+            return (
+              <TouchableOpacity
+                key={p.key}
+                className="px-2.5 py-1.5 rounded-xl bg-accent-soft"
+                onPress={apply}
+                activeOpacity={0.8}
+              >
+                <Text className="text-accent font-bold text-[11px]">{p.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         {isAdmin ? (
           <>

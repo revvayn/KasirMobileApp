@@ -61,7 +61,8 @@ src/
   screens/                     # HomeScreen, DashboardScreen, HistoryScreen,
                                # ProductManagerScreen (modal), PaymentScreen,
                                # QRISSettingScreen, TransactionDetailScreen
-  components/FilterBar.js      # Bar filter periode (Hari Ini/Bulan/Tahun/Semua/Tanggal)
+  components/FilterBar.js      # Bar filter periode (Hari Ini/Bulan/Tahun/Semua/Tanggal/Rentang)
+  components/DateField.js      # Field tanggal lintas platform (web input date / native date picker)
   components/ProductOptionModal.js # Modal pilih varian/modifier/catatan saat kasir tap produk
   services/
     productService.js          # CRUD produk
@@ -137,7 +138,7 @@ PENTING: Dokumen produk wajib punya stok yang cukup — `createTransaction` meng
 - Seksi dinamis **Varian** (nama + tambahan harga `+Rp`, diformat `formatRupiahInput`, diparsing `parseRupiahInput` saat save) dan **Modifier** (nama grup + daftar opsi; tambah/hapus baris). Produk sembako/ritel cukup kosongkan seksi ini.
 - Validasi wajib: nama, harga jual ≥ 0, stok ≥ 0; **Harga Modal (Rp)** opsional (default = harga jual jika kosong). Konfirmasi hapus sebelum dieksekusi.
 - Field **Stok Minimum** (`minStock`, default 5): dipakai stat "Stok Menipis" & badge "Menipis"/"Habis" di list. `addProduct`/`updateProduct` menerima `minStock`.
-- Field **Diskon Produk** (`discountPercent`, 0–100 dalam kelipatan 5): dipilih lewat **ScrollView horizontal** ("geser ke samping 0%–100%"). Diskon MELEKAT pada produk dan otomatis dipakai saat kasir menjual; list produk & HomeScreen menampilkan badge `-X%`. `addProduct`/`updateProduct` menerima `discountPercent`.
+- Field **Diskon Produk** (`discountPercent`, 0–100 kelipatan 5): slider `@react-native-community/slider`. Diskon MELEKAT pada produk dan otomatis dipakai saat kasir menjual; list produk & HomeScreen menampilkan badge `-X%`. `addProduct`/`updateProduct` menerima `discountPercent`.
 
 ### Auth & Role (baru sejak sesi ini)
 - Firebase **Email/Password** (`src/config/firebase.js` export `auth`). `App.js` subscribe `onAuthStateChanged` → restore sesi ke `useAuthStore`.
@@ -182,7 +183,7 @@ PENTING: Dokumen produk wajib punya stok yang cukup — `createTransaction` meng
 
 - Alert: `showAlert(title, message)` — pakai `window.alert` di web, `Alert.alert` di native. Contoh di HomeScreen/HistoryScreen.
 - Konfirmasi hapus: `window.confirm` di web, `Alert.alert` dengan tombol destructive di native.
-- `FilterBar` memakai `<input type="date">` di web dan `TextInput` di native; chip **Rentang** memakai dua input `rangeStart`/`rangeEnd` (`YYYY-MM-DD`).
+- `FilterBar` memakai `DateField` (`src/components/DateField.js`): web pakai `<input type="date">`, native pakai `@react-native-community/datetimepicker` (kalender OS, tanpa ketik manual); plus chip presets Hari Ini/Kemarin/7 Hari/30 Hari (di ClosingScreen juga). Chip **Rentang** memakai dua field `rangeStart`/`rangeEnd` (`YYYY-MM-DD`, format lokal via `dateToStr`/`strToDate`).
 - Hindari hardcode warna — gunakan `colors.*` agar konsisten semua platform.
 
 ## Scripts (package.json)

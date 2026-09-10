@@ -192,7 +192,8 @@ src/
                                # Payment, QRISSetting, TransactionDetail, Closing,
                                # UserManager
   components/
-    FilterBar.js               # Filter periode (Hari Ini/Bulan/Tahun/Semua/Tanggal/Rentang)
+    FilterBar.js               # Filter periode (Hari Ini/Bulan/Tahun/Semua/Tanggal/Rentang) + chip cepat
+    DateField.js               # Field tanggal lintas platform (web: input date, native: date picker OS)
     ProductOptionModal.js      # Modal pilih varian/modifier/catatan + diskon item
     CartItemsSheet.js          # Bottom sheet edit per-kombinasi di keranjang
   services/
