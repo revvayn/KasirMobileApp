@@ -466,7 +466,7 @@ export default function ProductManagerScreen() {
         onRequestClose={() => !saving && setModalVisible(false)}
       >
         <View className="flex-1 justify-end bg-black/50">
-          <View className="bg-surface rounded-t-[28px] pt-5 pb-7 px-5 max-h-[92%]">
+          <View className="bg-surface rounded-t-[28px] pt-5 pb-7 px-5 h-[92%] max-h-[92%]">
             <View className="w-10 h-1.5 rounded-full bg-hairline self-center mb-4" />
 
             <View className="flex-row items-center justify-between mb-4">
